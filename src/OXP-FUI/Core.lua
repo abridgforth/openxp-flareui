@@ -29,9 +29,10 @@
 --      so their text ran out of the window); the pill sits 14px in from the
 --      row's right edge, clear of the border and scroll bar, and is as wide
 --      as its label in the FlareUI font (+ OpenXP's 12px).
---   5. Step list header (Card.lua): the title is centred in a 24px title
---      bar; the rows start 4px lower, clear of the bar's rod, and the list
---      grows by the same 4px so the bottom keeps OpenXP's own spacing.
+--   5. Step list header (Card.lua): the card's title strip; the title and
+--      OpenXP's close button sit on it (the button moved onto the strip's
+--      right end, 24x24); the rows start 8px lower, under the strip, and the
+--      list grows by the same 8px so the bottom keeps OpenXP's own spacing.
 --   6. Quest Targets pin (TargetsDock.lua): with its setting on, OpenXP's
 --      Quest Targets window is anchored below or beside the guide card, and
 --      under the step list while that is open.

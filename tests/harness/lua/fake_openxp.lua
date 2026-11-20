@@ -321,7 +321,7 @@ end
 
 function card.FillStepList()
   if not (list and list:IsShown()) then return end
-  list.title:SetText("Fake Guide 1-10")
+  list.title:SetText("1-10 Fake Guide") -- OpenXPCard.lua 2583: the guide displayname
   list.count = FAKE_STEPS
   for r, row in ipairs(list.rows) do
     local i = list.offset + r

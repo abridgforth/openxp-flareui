@@ -371,7 +371,7 @@ end
 -- Blizzard's windows do. Same button, size, spot and click; OpenXP's icon
 -- and wash are hidden while the art shows. Without the atlas (an older
 -- client) OpenXP's own look stays.
-local CLOSE_SIZE, CLOSE_X, CLOSE_Y = 24, 1, 0
+local CLOSE_SIZE, CLOSE_X, CLOSE_Y = 24, 0, 0
 local function styleCloseButton(btn, list)
   local b = theme.RealFrame(btn)
   if not (b and b.CreateTexture) then return end
@@ -398,27 +398,19 @@ local function styleCloseButton(btn, list)
   end
   if b.icon then b.icon:SetAlpha(0) end
   if b.bg then b.bg:SetAlpha(0) end
-  -- Placed like Blizzard's own close button (UIPanelCloseButtonDefaultAnchors:
-  -- 24x24 at the window's TOPRIGHT, +1, 0, over the frame's corner). OpenXP's
-  -- button stays where it is; its click area is moved onto the art with
-  -- hit-rect insets (no layout change), so what you see is what you click.
+  -- Layout exception 5: on the title strip's right end, centred on it like
+  -- the Quest Targets fold button (FlareUI has no close glyph of its own:
+  -- its windows use Blizzard's close button). OpenXP's button itself moves
+  -- and takes the art's size, so what you see is what you click.
   local l = theme.RealFrame(list)
+  local band = l and l.oxpfuiBands and l.oxpfuiBands.title
   art:ClearAllPoints()
-  local point, rel, _, x, y = nil, nil, nil, 0, 0
-  if b.GetPoint then point, rel, _, x, y = b:GetPoint(1) end
-  local w, h = b:GetSize()
-  if l and point == "TOPRIGHT" and rel == l and type(w) == "number" and type(h) == "number" then
-    art:SetPoint("TOPRIGHT", l, "TOPRIGHT", CLOSE_X, CLOSE_Y)
-    x, y = x or 0, y or 0
-    -- Button rect (relative to the list's top-right): right x, top y, w x h.
-    -- Art rect: right CLOSE_X, top CLOSE_Y, CLOSE_SIZE square.
-    local left = (CLOSE_X - CLOSE_SIZE) - (x - w)
-    local right = x - CLOSE_X
-    local top = CLOSE_Y - y
-    local bottom = (y - h) - (CLOSE_Y - CLOSE_SIZE)
-    if b.SetHitRectInsets then b:SetHitRectInsets(left, right, -top, -bottom) end
-  else
-    art:SetPoint("CENTER", b, "CENTER")
+  art:SetAllPoints(b)
+  if band then
+    b:ClearAllPoints()
+    b:SetPoint("RIGHT", band, "RIGHT", CLOSE_X, CLOSE_Y)
+    b:SetSize(CLOSE_SIZE, CLOSE_SIZE)
+    if b.SetHitRectInsets then b:SetHitRectInsets(0, 0, 0, 0) end
   end
 end
 
@@ -455,7 +447,7 @@ end
 -- LIST_TOP_PAD and the list grows by the same amount, so the bottom keeps
 -- OpenXP's own 8px. Rows are re-anchored exactly as OpenXP anchors them
 -- (TOPLEFT 4 / TOPRIGHT -4, rowH apart), only lower; idempotent.
-local LIST_TOP_PAD = 4
+local LIST_TOP_PAD = 8 -- the title strip ends 30px down: first row at 36
 local function padListTop(list)
   local l = theme.RealFrame(list)
   if not (l and l.GetHeight and l.SetHeight) then return end
@@ -476,21 +468,39 @@ local function padListTop(list)
   end
 end
 
+-- The list's title, OpenXP's guide name ("16-19 Darkshore"), in the card
+-- header's form: "Darkshore (16–19)", the range dimmed.
+local function listTitle(rt, openxp)
+  if not (rt and rt.GetText) then return end
+  local current = rt:GetText()
+  if current == rt.oxpfuiShown then return end
+  local name, range = guideZoneRange(openxp)
+  local plain = type(current) == "string"
+    and current:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") or ""
+  local shown = current
+  if name and range and plain:find(name, 1, true) then
+    shown = name .. " " .. hex(C.DIM) .. "(" .. range .. ")|r"
+  end
+  rt:SetText(shown)
+  rt.oxpfuiShown = shown
+end
+
 local function skinStepList(list, openxp)
-  -- A pop-up window: always a background and frame, and a Blizzard-style
-  -- compact title bar (see theme.ApplyWindowTitleBar) instead of the
-  -- tracker's taller title strip.
+  -- One window model with the card and Quest Targets: the tracker's title
+  -- strip, the title on it in the card header's form. Still a pop-up role:
+  -- always a background and frame, since it opens over the world.
   padListTop(list)
   theme.ApplyText(list.title, "header", "TITLE")
   local rl, rt = theme.RealFrame(list), theme.RealFrame(list.title)
   if rl and rt and rl.GetChildren then
-    theme.ApplyWindow(rl, { role = "popup", header = rt, headerStyle = "titlebar" })
-    local bar = rl.oxpfuiBands.titlebar
-    -- Layout exception 5: the title is centred in the bar (OpenXP puts it at
-    -- TOPLEFT 14,-9 under a 28px header of its own).
+    theme.ApplyWindow(rl, { role = "popup", header = rt, headerStyle = "strip" })
+    listTitle(rt, openxp)
+    local band = rl.oxpfuiBands.title
+    -- Layout exception 5: the title sits on the strip where the card's and
+    -- Quest Targets' titles do (OpenXP: TOPLEFT 14,-9).
     rt:ClearAllPoints()
-    rt:SetPoint("LEFT", bar, "LEFT", theme.ART.PAD, 0)
-    rt:SetPoint("RIGHT", bar, "RIGHT", -30, 0)
+    rt:SetPoint("LEFT", band, "LEFT", theme.ART.PAD - theme.ART.HEADER_INSET, 0)
+    rt:SetPoint("RIGHT", band, "RIGHT", -(CLOSE_SIZE + 6), 0)
     if rt.SetJustifyH then rt:SetJustifyH("LEFT") end
     if rt.SetWordWrap then rt:SetWordWrap(false) end
   end
@@ -516,6 +526,7 @@ local function skinStepList(list, openxp)
   end
   -- FlareUI's procedural bronze scrollbar beside the wheel-scrolled list.
   theme.ApplyScrollBar(list, {
+    top = 28 + LIST_TOP_PAD,
     state = function()
       local total = list.count or #rows
       local visible = #rows

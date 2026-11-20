@@ -707,7 +707,7 @@ class StepListWindow(unittest.TestCase):
 
     def test_rows_move_down_from_the_header_and_bottom_keeps_openxps_8px(self):
         env = self._open()
-        expected = 28 + 6 * 18 + 8 + 4
+        expected = 28 + 6 * 18 + 8 + 8
         self.assertEqual(env.run("return HARNESS.cardBits.list:GetHeight()"), expected)
         tops = env.run("""
           local out = {}
@@ -719,8 +719,8 @@ class StepListWindow(unittest.TestCase):
           end
           return out[1], out[2], out[6]
         """)
-        self.assertEqual(tops, (-32, -50, -122))
-        # Last row bottom: -122 - 18 = -140; list height 148 -> 8px left.
+        self.assertEqual(tops, (-36, -54, -126))
+        # Last row bottom: -126 - 18 = -144; list height 152 -> 8px left.
         env.run("OXPFUI.Reapply('again'); OXPFUI.Reapply('again')")
         self.assertEqual(env.run("return HARNESS.cardBits.list:GetHeight()"), expected)
 
@@ -746,37 +746,31 @@ class StepListWindow(unittest.TestCase):
         """)
         self.assertEqual(res, ("RIGHT", True, "RIGHT", -14, True))
 
-    def test_close_art_sits_where_blizzard_puts_its_close_button(self):
+    def test_close_button_sits_on_the_title_strips_right_end(self):
         env = self._open()
         self.assertEqual(env.run("""
           local l = HARNESS.cardBits.list
-          local pt, rel, relPt, x, y = l.close.oxpfuiRed:GetPoint(1)
-          local w, h = l.close.oxpfuiRed:GetSize()
-          return pt, rel == l, relPt, x, y, w, h
-        """), ("TOPRIGHT", True, "TOPRIGHT", 1, 0, 24, 24))
-        # The click area is moved onto the art: OpenXP's 40x30 button at
-        # TOPRIGHT -4,-4 gets insets (21, -5, -4, 10).
-        insets = env.run("""
-          local calls = HARNESS.cardBits.list.close.__calls
-          for i = #calls, 1, -1 do
-            if calls[i][1] == 'SetHitRectInsets' then
-              return calls[i][2], calls[i][3], calls[i][4], calls[i][5]
-            end
-          end
-        """)
-        self.assertEqual(insets, (21, -5, -4, 10))
+          local pt, rel, relPt, x, y = l.close:GetPoint(1)
+          local w, h = l.close:GetSize()
+          return pt, rel == l.oxpfuiBands.title, relPt, x, y, w, h
+        """), ("RIGHT", True, "RIGHT", 0, 0, 24, 24))
+        self.assertTrue(env.run("local c = HARNESS.cardBits.list.close; "
+                                "local p, rel = c.oxpfuiRed:GetPoint(1); return rel == c"))
 
-    def test_popup_has_a_compact_title_bar_with_the_title_centred(self):
-        env = self._open()
-        self.assertEqual(env.run("return HARNESS.cardBits.list.oxpfuiBands.titlebar:GetHeight()"), 24)
+    def test_list_has_the_cards_title_strip_and_header_text(self):
+        env = self._open(db={"frameStyle": "flareui"})
+        self.assertIs(env.run("return HARNESS.cardBits.list.oxpfuiBands.title.oxpfuiStrip.L:IsShown()"), True)
+        self.assertIsNone(env.run("return HARNESS.cardBits.list.oxpfuiBands.titlebar"))
         self.assertEqual(env.run("""
           local l = HARNESS.cardBits.list
           local pt, rel, relPt, x, y = l.title:GetPoint(1)
-          return pt, rel == l.oxpfuiBands.titlebar, relPt, x, y
-        """), ("LEFT", True, "LEFT", 14, 0))
-        # The rod sits on the bar's bottom edge, and no tracker strip is drawn.
-        self.assertIs(env.run("return HARNESS.cardBits.list.oxpfuiBands.titlerule.oxpfuiStrip.L:IsShown()"), True)
-        self.assertIsNone(env.run("local b = HARNESS.cardBits.list.oxpfuiBands.title; return b and b.oxpfuiStrip"))
+          return pt, rel == l.oxpfuiBands.title, relPt, x, y
+        """), ("LEFT", True, "LEFT", 6, 0))
+        self.assertEqual(env.run("return HARNESS.cardBits.list.title:GetText()"),
+                         "Fake Guide |cFF8C8C8C(1–10)|r")
+        env.run("OXPFUI.Reapply('again')")
+        self.assertEqual(env.run("return HARNESS.cardBits.list.title:GetText()"),
+                         "Fake Guide |cFF8C8C8C(1–10)|r")
 
     def test_popup_keeps_a_background_and_frame_with_a_borderless_style(self):
         env = Env(db={"opacity": 0, "borderStyle": "None", "followFlareUI": False})

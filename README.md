@@ -35,9 +35,10 @@ deliberate, re-applied after every OpenXP refresh, and listed here and in
    label unbounded, so long steps ran out of the window.) Status labels sit
    14 px in from the edge, clear of the border and scroll bar, and their
    plates fit the FlareUI font.
-5. **Step list header**: the title is centred in a 24 px title bar; the
-   rows start 4 px lower so the first row clears the bar's rod, and the list
-   grows by the same 4 px so the bottom keeps OpenXP's spacing.
+5. **Step list header**: the card's title strip, with the title ("Darkshore
+   (16–19)", as on the card) and OpenXP's close button on it; the rows start
+   8 px lower so the first row clears the strip, and the list grows by the
+   same 8 px so the bottom keeps OpenXP's spacing.
 6. **Quest Targets pin**: with **Pin to the guide** on, OpenXP's Quest
    Targets window is anchored to the guide card (see below).
 7. **Card header**: the zone text starts where OpenXP's accent dot was (the
@@ -166,11 +167,12 @@ and the window gets the bottom strip on its bottom border (except the guide
 card, whose bottom edge carries OpenXP's XP bar). Pop-up windows with no
 border of their own (a borderless tracker style) use FlareUI's Thick frame.
 
-The step list is a pop-up window, so it uses Blizzard's window anatomy
-rather than the tracker's: a compact 24 px title bar with the title centred
-in it and the tracker's rod along its bottom, and Blizzard's red close
-button sized and placed like Blizzard's own (24×24 on the window's top-right
-corner, click area on the art). It always has a background (at least 85%)
+The step list uses the same window model as the card and Quest Targets:
+the tracker's title strip as its header, the title in the card's form
+("Darkshore (16–19)"), and Blizzard's red close button (24×24) on the
+strip's right end, where Quest Targets has its fold button. FlareUI has no
+close glyph of its own (its windows use Blizzard's close button). As a
+pop-up it always has a background (at least 85%)
 and a frame, even when following a borderless tracker style: it opens over
 other windows, and its whole area takes clicks. It keeps the FlareUI font
 while scrolling.
