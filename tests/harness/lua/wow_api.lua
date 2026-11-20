@@ -449,6 +449,14 @@ local fsExtra = {
     local size = self.__font and self.__font[2] or 12
     return #(tostring(self.__text or "")) * size * 0.5
   end,
+  -- Real API: the wrapped text's height; approximated as lines * size * 1.2.
+  GetStringHeight = function(self)
+    local size = self.__font and self.__font[2] or 12
+    local w = #(tostring(self.__text or "")) * size * 0.5
+    local lines = 1
+    if self.__width and self.__width > 0 then lines = math.max(1, math.ceil(w / self.__width)) end
+    return lines * size * 1.2
+  end,
   SetTextColor = function(self, r, g, b, a)
     record(self, "SetTextColor", r, g, b, a)
     self.__textColor = { r, g, b, a or 1 }

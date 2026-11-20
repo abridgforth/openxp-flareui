@@ -105,32 +105,68 @@ end
 -- Element sections
 -- ---------------------------------------------------------------------------
 
--- The zone name as the guide spells it: OpenXP shows it upper-cased, taken
--- from the guide's name, so the original casing is found there (this keeps
--- names like "Un'Goro Crater" right, which case rules alone would not).
-local function zoneDisplayName(text, openxp)
-  if type(text) ~= "string" or text == "" or text ~= text:upper() then return text end
+-- The guide's zone and level range, exactly as OpenXP splits them
+-- (OpenXPCard.lua SplitGuideName: "16-19 Darkshore" -> "Darkshore", "16–19"),
+-- read from the selected guide on every pass, so the header always follows
+-- the guide.
+local function guideZoneRange(openxp)
   local guide = openxp and openxp.currentGuide
-  for _, name in ipairs({ guide and guide.displayname, guide and guide.name }) do
-    if type(name) == "string" then
-      local plain = name:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
-      local s = plain:upper():find(text, 1, true)
-      if s then return plain:sub(s, s + #text - 1) end
+  local name = guide and (guide.displayname or guide.name)
+  if type(name) ~= "string" then return nil end
+  name = name:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("\\n", " "):gsub("\n", " ")
+  local range, zone = name:match("^(%d+%s*%-%s*%d+)%s+(.+)$")
+  if range then return zone, (range:gsub("%s", ""):gsub("%-", "–")) end
+  return name, nil
+end
+
+local function hex(c)
+  return string.format("|cFF%02X%02X%02X", math.floor(c[1] * 255 + 0.5),
+    math.floor(c[2] * 255 + 0.5), math.floor(c[3] * 255 + 0.5))
+end
+
+-- Header text: "Darkshore (16–19)", the range dimmed, no accent dot. During
+-- a quest-chain detour OpenXP shows "QUEST CHAIN" instead: title-cased, no
+-- range. Layout exception 7 (Core.lua): the zone starts where the dot was,
+-- and is cut with "..." where it would reach "Step n / n".
+local function headerText(header, openxp)
+  local zone = theme.RealFrame(header.zone)
+  local hf = theme.RealFrame(header)
+  if not (zone and zone.GetText and zone.SetText and hf) then return end
+  local current = zone:GetText()
+  if current ~= zone.oxpfuiShown then
+    -- OpenXP refreshed the header since the last pass: rebuild from source.
+    -- OpenXP shows the guide's zone upper-cased; anything else it shows
+    -- there (the "QUEST CHAIN" detour title) is just title-cased.
+    local shown
+    local name, range = guideZoneRange(openxp)
+    if name and type(current) == "string" and current:upper() == name:upper() then
+      shown = range and (name .. " " .. hex(C.DIM) .. "(" .. range .. ")|r") or name
+    else
+      shown = theme.TitleCase(current)
     end
+    zone:SetText(shown)
+    zone.oxpfuiShown = shown
   end
-  return theme.TitleCase(text)
+  if header.dot and header.dot.SetAlpha then header.dot:SetAlpha(0) end
+  local range = theme.RealFrame(header.range)
+  if range and range.SetAlpha then range:SetAlpha(0) end
+  zone:ClearAllPoints()
+  zone:SetPoint("LEFT", hf, "LEFT", theme.ART.PAD, 0)
+  if zone.SetWordWrap then zone:SetWordWrap(false) end
+  local step = theme.RealFrame(header.step)
+  local room = (hf:GetWidth() or 0) - theme.ART.PAD * 2
+    - ((step and step.GetStringWidth and step:GetStringWidth()) or 0) - 10
+  if zone.SetWidth then
+    zone:SetWidth(0)
+    if room > 20 and (zone:GetStringWidth() or 0) > room then zone:SetWidth(room) end
+  end
 end
 
 local function skinHeader(header, openxp)
-  local zone = theme.RealFrame(header.zone)
-  if zone and zone.GetText and zone.SetText then
-    local text = zone:GetText()
-    local shown = zoneDisplayName(text, openxp)
-    if shown ~= text then zone:SetText(shown) end
-  end
   theme.ApplyText(header.zone, "zone", "ZONE")
   theme.ApplyText(header.range, "counter", "DIM")
   theme.ApplyText(header.step, "counter", "TITLE")
+  headerText(header, openxp)
   setVertex(header.dot, C.ACCENT)  -- the blue accent dot becomes amber
   -- header.stepBtn (the invisible hit area over "Step n / n" that opens the
   -- step list) is deliberately left as OpenXP draws it: no chrome.

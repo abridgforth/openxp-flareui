@@ -598,13 +598,40 @@ class TitleCaseHeadings(unittest.TestCase):
                           ("16-19 DARKSHORE", "16-19 Darkshore")):
             self.assertEqual(env.run(f"return OXPFUI.theme.TitleCase({src!r})"), want)
 
-    def test_zone_name_comes_from_the_guide_name(self):
+    def test_header_shows_zone_and_level_range_from_the_guide(self):
         env = Env()
         env.boot()
-        self.assertEqual(env.run("return HARNESS.cardBits.header.zone:GetText()"), "Fake Guide")
-        env.run("HARNESS.openxp.currentGuide.displayname = \"1-6 Un'Goro Crater\"; "
+        zone = "return HARNESS.cardBits.header.zone:GetText()"
+        self.assertEqual(env.run(zone), "Fake Guide |cFF8C8C8C(1–10)|r")
+        # No accent dot; OpenXP's separate range label is hidden.
+        self.assertEqual(env.run("return HARNESS.cardBits.header.dot:GetAlpha()"), 0)
+        self.assertEqual(env.run("return HARNESS.cardBits.header.range:GetAlpha()"), 0)
+        # A new guide: OpenXP refreshes its header, the text follows.
+        env.run("HARNESS.openxp.currentGuide.displayname = \"48-52 Un'Goro Crater\"; "
                 "HARNESS.cardBits.header.zone:SetText(\"UN'GORO CRATER\"); OXPFUI.Reapply('t')")
-        self.assertEqual(env.run("return HARNESS.cardBits.header.zone:GetText()"), "Un'Goro Crater")
+        self.assertEqual(env.run(zone), "Un'Goro Crater |cFF8C8C8C(48–52)|r")
+        # Re-applying without an OpenXP refresh changes nothing.
+        env.run("OXPFUI.Reapply('again')")
+        self.assertEqual(env.run(zone), "Un'Goro Crater |cFF8C8C8C(48–52)|r")
+        # A guide without a range: just the name.
+        env.run("HARNESS.openxp.currentGuide.displayname = 'Deadmines'; "
+                "HARNESS.cardBits.header.zone:SetText('DEADMINES'); OXPFUI.Reapply('t')")
+        self.assertEqual(env.run(zone), "Deadmines")
+
+    def test_quest_chain_detour_title_is_title_cased(self):
+        env = Env()
+        env.boot()
+        env.run("HARNESS.cardBits.header.zone:SetText('QUEST CHAIN'); OXPFUI.Reapply('t')")
+        self.assertEqual(env.run("return HARNESS.cardBits.header.zone:GetText()"), "Quest Chain")
+
+    def test_zone_starts_where_the_dot_was(self):
+        env = Env()
+        env.boot()
+        self.assertEqual(env.run("""
+          local h = HARNESS.cardBits.header
+          local pt, rel, relPt, x = h.zone:GetPoint(1)
+          return pt, rel == h, relPt, x
+        """), ("LEFT", True, "LEFT", 14))
 
     def test_up_next_label_and_along_the_way_prefix(self):
         env = Env()
@@ -625,6 +652,52 @@ class TitleCaseHeadings(unittest.TestCase):
           local pt, rel, relPt, x, y = u.text:GetPoint(1)
           return pt, rel == u.label, relPt, x, y
         """), ("LEFT", True, "RIGHT", 8, 0))
+
+
+class QuestTargetsContainer(unittest.TestCase):
+    """Quest Targets in the tracker's container look."""
+
+    def test_header_band_title_case_and_no_wash(self):
+        env = Env()
+        env.boot()
+        self.assertEqual(env.run("return RXPTargetFrame_title.text:GetText()"), "Quest Targets")
+        bands = "RXPTargetFrame.oxpfuiBands"
+        self.assertEqual(env.run(f"local _,_,_,a = {bands}.targetsHeader.fill:GetColorTexture(); return a"), 0.35)
+        for key in ("targetsHeaderTop", "targetsHeaderBottom"):
+            self.assertIs(env.run(f"return {bands}.{key}.oxpfuiStrip.L:IsShown()"), True, key)
+        self.assertEqual(env.run("""
+          local b = RXPTargetFrame.oxpfuiBands.targetsHeaderBottom
+          local pt, rel, relPt = b:GetPoint(1)
+          return pt, rel == RXPTargetFrame_title, relPt
+        """), ("TOP", True, "BOTTOM"))
+
+    def test_section_labels_title_case_on_a_fading_shade(self):
+        env = Env()
+        env.boot()
+        self.assertEqual(env.run("return RXPTargetFrame.sections.enemy:GetText()"), "Kill")
+        self.assertEqual(env.run("return RXPTargetFrame.sections.friendly:GetText()"), "Talk to")
+        self.assertIs(env.run("return RXPTargetFrame.oxpfuiBands.targetsSection_enemy:IsShown()"), True)
+        # A hidden section hides its shade too.
+        env.run("RXPTargetFrame.sections.friendly:Hide(); OXPFUI.Reapply('t')")
+        self.assertIs(env.run("return RXPTargetFrame.oxpfuiBands.targetsSection_friendly:IsShown()"), False)
+
+
+class StepMock(unittest.TestCase):
+    def test_slash_toggles_a_standalone_mock_window(self):
+        env = Env()
+        env.boot()
+        frames = ("OpenXPCard", "RXPTargetFrame")
+        baseline = {f: env.calls_made_on(f) for f in frames}
+        env.slash("/oxpfui mock")
+        self.assertIs(env.run("return OXPFUIMock:IsShown()"), True)
+        self.assertEqual(env.chat(), [])
+        self.assertIn("Darkshore", env.run("return OXPFUIMock.zone:GetText()"))
+        self.assertIn("(16–19)", env.run("return OXPFUIMock.zone:GetText()"))
+        self.assertGreater(env.run("return OXPFUIMock:GetHeight()"), 100)
+        env.slash("/oxpfui mock")
+        self.assertIs(env.run("return OXPFUIMock:IsShown()"), False)
+        for f in frames:
+            self.assertEqual(env.calls_made_on(f), baseline[f], f"{f} touched by the mock")
 
 
 if __name__ == "__main__":

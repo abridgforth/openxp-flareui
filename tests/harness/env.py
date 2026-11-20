@@ -21,7 +21,7 @@ ADDON_FILES = ["Core.lua", "Settings.lua", "Locale.lua", "Theme.lua",
                "Docking.lua", "TargetsDock.lua",
                "ArrowSkin.lua", "Card.lua", "SkinTargets.lua",
                "SkinTracker.lua", "SkinWindows.lua", "SkinTooltips.lua",
-               "WelcomeFeedback.lua", "SettingsPanel.lua"]
+               "WelcomeFeedback.lua", "SettingsPanel.lua", "Mock.lua"]
 
 
 def _lua_literal(value) -> str:

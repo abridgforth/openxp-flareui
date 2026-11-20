@@ -6,9 +6,11 @@
 --
 -- What gets the FlareUI look (appearance only):
 --   * RXPTargetFrame   — bronze border + warm dark fill (theme backdrop)
---   * the title strip  — "QUEST TARGETS" in gold header typography, the
---                        keybind hint in dim grey
---   * section labels   — "KILL" / "TALK TO" in FlareUI zone bronze
+--   * the title strip  — "Quest Targets" in gold header typography on a
+--                        tracker-style header band (shade between two rods),
+--                        the keybind hint in dim grey
+--   * section labels   — "Kill" / "Talk to" in the zone colour on a heading
+--                        shade that fades out to the right
 --   * target rows      — name in light grey body text, keybind hint dim,
 --                        the 2px class strip recoloured to the bronze accent
 --
@@ -47,10 +49,22 @@ OXPFUI.RegisterSkin{
   Apply = function(ctx)
     local f = ctx.Frame("RXPTargetFrame")
     if f then theme.ApplyBackdrop(f) end
+    local rf = theme.RealFrame(f)
 
     local title = ctx.Frame("RXPTargetFrame_title")
     if title then
       theme.ApplyTitleStrip(title)
+      local rt = theme.RealFrame(title)
+      -- OpenXP's faint white wash goes; the tracker-style header band (a
+      -- shade between two rods) takes its place. "QUEST TARGETS" becomes
+      -- "Quest Targets", like the tracker's headings.
+      if rt and rt.SetBackdropColor then pcall(rt.SetBackdropColor, rt, 1, 1, 1, 0) end
+      local text = theme.RealFrame(title.text)
+      if text and text.GetText then
+        local tc = theme.TitleCase(text:GetText())
+        if tc ~= text:GetText() then text:SetText(tc) end
+      end
+      if rf and rt and rf.GetChildren then theme.ApplyHeaderBand(rf, rt, "targetsHeader") end
       if title.keyHint then
         theme.ApplyText(title.keyHint, "body", "DIM")
       end
@@ -62,8 +76,18 @@ OXPFUI.RegisterSkin{
     local tf = openxp and openxp.targeting and openxp.targeting.activeTargetFrame
     if type(tf) ~= "table" then return end
     if type(tf.sections) == "table" then
-      for _, fs in pairs(tf.sections) do
+      local rtf = theme.RealFrame(tf)
+      for key, fs in pairs(tf.sections) do
         theme.ApplyText(fs, "title", "ZONE")
+        -- "KILL" / "TALK TO" -> "Kill" / "Talk to", on a heading shade.
+        local rfs = theme.RealFrame(fs)
+        if rfs and rfs.GetText then
+          local tc = theme.TitleCase(rfs:GetText())
+          if tc ~= rfs:GetText() then rfs:SetText(tc) end
+        end
+        if rtf and rtf.GetChildren then
+          theme.ApplySectionHeading(rtf, rfs, "targetsSection_" .. tostring(key))
+        end
       end
     end
     for _, listName in ipairs({ "enemyTargetButtons", "friendlyTargetButtons" }) do

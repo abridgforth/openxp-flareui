@@ -40,6 +40,8 @@ deliberate, re-applied after every OpenXP refresh, and listed here and in
    grows by the same 4 px so the bottom keeps OpenXP's spacing.
 6. **Quest Targets pin**: with **Pin to the guide** on, OpenXP's Quest
    Targets window is anchored to the guide card (see below).
+7. **Card header**: the zone text starts where OpenXP's accent dot was (the
+   dot is hidden) and is cut off with "…" before "Step n / n".
 
 ## Install
 
@@ -130,9 +132,22 @@ and a frame, even when following a borderless tracker style: it opens over
 other windows, and its whole area takes clicks. It keeps the FlareUI font
 while scrolling.
 
-Headings use title case like the tracker's ("Darkshore", "Up Next",
-"Along the Way"); the zone name is taken from the guide's own name, so it
-is spelled as the guide spells it.
+Headings use title case like the tracker's ("Up Next", "Along the Way").
+The card header reads **Darkshore (16–19)**: zone and level range, taken
+from the selected guide's name on every refresh (the way OpenXP itself
+splits it), so it always matches the guide; the range is dimmed, and there
+is no accent dot. During a quest-chain detour it reads "Quest Chain".
+
+Quest Targets uses the tracker's container look: its header sits on a
+shaded band between two rods ("Quest Targets"), and its "Kill" / "Talk to"
+headings on a shade that fades out to the right, like the tracker's zone
+headings.
+
+`/oxpfui mock` opens a design mock-up of a more readable card body (small
+step-type icons instead of the large badge, indented objectives with counts,
+tips as secondary text, faint dividers between steps, faded section
+headings). It is a separate window with sample steps; it does not change
+the real card.
 
 The card's toolbar takes the look of FlareUI's tracker header buttons: each
 button is a dark square with a bronze rim (lit while pointed at) behind a

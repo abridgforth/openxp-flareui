@@ -704,4 +704,96 @@ function theme.TitleCase(s)
   end))
 end
 
+
+-- ---------------------------------------------------------------------------
+-- Containers in the look of FlareUI's tracker
+-- ---------------------------------------------------------------------------
+
+-- A horizontal fade on a texture (modern client: ColorMixin arguments).
+local function fade(tex, a1, a2)
+  local ok = false
+  if CreateColor and tex.SetGradient then
+    ok = pcall(tex.SetGradient, tex, "HORIZONTAL", CreateColor(0, 0, 0, a1), CreateColor(0, 0, 0, a2))
+  end
+  if not ok then tex:SetColorTexture(0, 0, 0, (a1 + a2) / 2) end
+end
+
+-- A rod (the title art's bottom line with end knobs) on a 1px band whose
+-- top sits at `edge` ("TOP" / "BOTTOM") of `region`, across frame inside
+-- `inset`. Falls back to a bronze hairline without the atlas.
+local function rod(frame, region, edge, key, inset)
+  local A = theme.ART
+  local band = theme.Band(frame, key)
+  band:ClearAllPoints()
+  band:SetHeight(1)
+  band:SetPoint("TOP", region, edge)
+  band:SetPoint("LEFT", frame, "LEFT", inset, 0)
+  band:SetPoint("RIGHT", frame, "RIGHT", -inset, 0)
+  local reach = theme.ArtReach(A.TITLE)
+  local drawn = theme.PlaceStrip(band, A.TITLE, reach, reach, A.FOOT_BAND)
+  if not band.line then
+    band.line = band:CreateTexture(nil, "ARTWORK")
+    band.line:SetAllPoints(band)
+  end
+  local c = theme.C.ACCENT
+  band.line:SetColorTexture(c[1], c[2], c[3], 0.5)
+  if drawn then band.line:Hide() else band.line:Show() end
+  return band
+end
+
+-- A window header like the tracker's "Quests" header: a shaded band
+-- between two rods, across the window. header: the region the band covers.
+function theme.ApplyHeaderBand(frame, header, key)
+  key = key or "header"
+  local A = theme.ART
+  local band = theme.Band(frame, key)
+  band:ClearAllPoints()
+  band:SetPoint("TOP", header, "TOP")
+  band:SetPoint("BOTTOM", header, "BOTTOM")
+  band:SetPoint("LEFT", frame, "LEFT", 2, 0)
+  band:SetPoint("RIGHT", frame, "RIGHT", -2, 0)
+  if not band.fill then
+    band.fill = band:CreateTexture(nil, "BACKGROUND", nil, -2)
+    band.fill:SetAllPoints(band)
+  end
+  band.fill:SetColorTexture(0, 0, 0, 0.35)
+  rod(frame, header, "TOP", key .. "Top", 2)
+  rod(frame, header, "BOTTOM", key .. "Bottom", 2)
+  return band
+end
+
+-- A section heading like the tracker's zone headings (FlareUI's partial
+-- fill for child content): a shade behind the heading that fades out to
+-- the right, over a hairline that fades the same way. Hidden with the
+-- label (a font string cannot carry its own band).
+function theme.ApplySectionHeading(frame, label, key)
+  local band = theme.Band(frame, key)
+  local shown = label and label.IsShown and label:IsShown()
+  if not shown then band:Hide() return false end
+  band:Show()
+  band:ClearAllPoints()
+  band:SetPoint("TOP", label, "TOP", 0, 3)
+  band:SetPoint("BOTTOM", label, "BOTTOM", 0, -3)
+  band:SetPoint("LEFT", frame, "LEFT", 3, 0)
+  band:SetPoint("RIGHT", frame, "RIGHT", -3, 0)
+  if not band.fill then
+    band.fill = band:CreateTexture(nil, "BACKGROUND", nil, -2)
+    band.fill:SetAllPoints(band)
+    band.line = band:CreateTexture(nil, "ARTWORK")
+    band.line:SetHeight(1)
+    band.line:SetPoint("BOTTOMLEFT", band, "BOTTOMLEFT")
+    band.line:SetPoint("BOTTOMRIGHT", band, "BOTTOMRIGHT")
+  end
+  fade(band.fill, 0.5, 0)
+  local c = theme.C.ACCENT
+  band.line:SetColorTexture(c[1], c[2], c[3], 1)
+  local ok = false
+  if CreateColor and band.line.SetGradient then
+    ok = pcall(band.line.SetGradient, band.line, "HORIZONTAL",
+      CreateColor(c[1], c[2], c[3], 0.8), CreateColor(c[1], c[2], c[3], 0))
+  end
+  if not ok then band.line:SetColorTexture(c[1], c[2], c[3], 0.4) end
+  return true
+end
+
 OXPFUI.theme = theme

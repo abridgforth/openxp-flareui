@@ -485,6 +485,9 @@ tf:SetScript("OnMouseUp", tf.onMouseUp)
 local tfTitle = CreateFrame("Frame", "RXPTargetFrame_title", tf)
 tfTitle:SetScript("OnMouseDown", tf.onMouseDown)
 tfTitle.text = tfTitle:CreateFontString(nil, "OVERLAY")
+-- UpdateV1IconFrameVisuals: L("QUEST TARGETS") at 11px Arial Narrow.
+tfTitle.text:SetFont("Fonts\\ARIALN.TTF", 11, "")
+tfTitle.text:SetText("QUEST TARGETS")
 tf.title = tfTitle
 tfTitle.keyHint = tfTitle:CreateFontString(nil, "OVERLAY")
 tfTitle.keyHint:SetFont("Fonts\\ARIALN.TTF", 10, "")
@@ -1341,7 +1344,7 @@ addonCard = addon.card
 
 -- The card's CurrentStep() reads this off the addon table.
 function addon.GetGuideProgress() return 4 end
-addon.currentGuide = { name = "Fake Guide", displayname = "Fake Guide 1-10", steps = {} }
+addon.currentGuide = { name = "Fake Guide", displayname = "1-10 Fake Guide", steps = {} }
 -- Guide header (OpenXPCard.lua SetHeader): the zone from the guide's name,
 -- upper-cased.
 HARNESS.cardBits.header.zone:SetFont("Fonts\\ARIALN.TTF", 12, "")

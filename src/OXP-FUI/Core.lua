@@ -35,6 +35,8 @@
 --   6. Quest Targets pin (TargetsDock.lua): with its setting on, OpenXP's
 --      Quest Targets window is anchored below or beside the guide card, and
 --      under the step list while that is open.
+--   7. Card header (Card.lua): the zone text starts where OpenXP's accent dot
+--      was (the dot is hidden) and is cut with "..." before "Step n / n".
 
 local ADDON_NAME, OXPFUI = ...
 
@@ -81,10 +83,13 @@ end
 
 -- /oxpfui — open the settings panel (default).
 -- /oxpfui debug — print what was skinned, what was skipped and why.
+-- /oxpfui mock — toggle the step-readability design mock-up (Mock.lua).
 SLASH_OXPFUI1 = "/oxpfui"
 SlashCmdList.OXPFUI = function(msg)
   local cmd = msg and msg:lower():match("^%s*(%S*)") or ""
-  if cmd == "debug" then
+  if cmd == "mock" then
+    if OXPFUI.ToggleMock then OXPFUI.ToggleMock() end
+  elseif cmd == "debug" then
     print(OXPFUI.DebugReport and OXPFUI.DebugReport() or (ADDON_NAME .. " " .. OXPFUI.version))
   else
     if OXPFUI.OpenPanel then OXPFUI.OpenPanel() end
