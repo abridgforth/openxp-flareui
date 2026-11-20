@@ -1,8 +1,8 @@
 -- OXP-FUI · Theme: the FlareUI Quest Tracker look, re-implemented.
 --
 -- Constants and recipes come from FlareUI's objective-tracker module
--- (FlareUI by Malkkav, MIT; art and fonts bundled under Media/ and License/,
--- see License/FlareUI-LICENSE.txt). No FlareUI code is copied — this file is
+-- (FlareUI by Malkkav, MIT; art and fonts bundled under Media/ and Licenses-ThirdParty/,
+-- see Licenses-ThirdParty/FlareUI-LICENSE.txt). No FlareUI code is copied — this file is
 -- a new implementation of the same API calls.
 
 local ADDON_NAME, OXPFUI = ...
@@ -74,14 +74,35 @@ theme.BORDERS = {
   Frames = { file = MEDIA .. "Borders\\FlareUI-Frames.tga", edgeSize = 16 },
   Thick = { file = MEDIA .. "Borders\\FlareUI-Thick.tga", edgeSize = 16 },
   Thin = { file = MEDIA .. "Borders\\FlareUI-Thin.tga", edgeSize = 8 },
+  None = { file = nil, edgeSize = 0 }, -- fill only, like FlareUI's "None"
 }
+theme.BORDER_ORDER = { "Frames", "Thick", "Thin", "None" }
 theme.DEFAULT_BORDER = "Frames"
+
+-- With "Follow FlareUI tracker style" on, FlareStyle supplies the tracker's
+-- own opacity / border / font; any value it cannot read stays the OXP-FUI
+-- setting. nil when not following.
+local function flare()
+  local fs = OXPFUI.FlareStyle
+  if not fs or not fs.Active() then return nil end
+  return fs.current or fs.Refresh()
+end
+theme.FlareOverrides = flare
+
+function theme.BorderKey(db)
+  local f = flare()
+  local key = (f and f.border) or db.borderStyle
+  if theme.BORDERS[key] then return key end
+  return theme.DEFAULT_BORDER
+end
 
 -- Panel fill opacity from settings; every backdrop recipe shares this
 -- default for a missing/non-numeric value.
 local DEFAULT_OPACITY = 0.6
 
 local function panelOpacity(db)
+  local f = flare()
+  if f and type(f.opacity) == "number" then return f.opacity end
   local opacity = db.opacity
   if type(opacity) ~= "number" then opacity = DEFAULT_OPACITY end
   return opacity
@@ -92,7 +113,7 @@ end
 -- opacity from settings. Appearance only — callers never resize the frame.
 function theme.ApplyBackdrop(frame)
   local db = OXPFUI.db or {}
-  local border = theme.BORDERS[db.borderStyle] or theme.BORDERS[theme.DEFAULT_BORDER]
+  local border = theme.BORDERS[theme.BorderKey(db)]
   local opacity = panelOpacity(db)
   frame:SetBackdrop({
     bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
@@ -137,7 +158,8 @@ end
 function theme.ApplyFontString(fs, kind)
   local db = OXPFUI.db or {}
   local size = theme.FONT_SIZES[kind] or theme.FONT_SIZES.body
-  fs:SetFont(theme.FontPath(db.font), size, "")
+  local f = flare()
+  fs:SetFont((f and f.fontPath) or theme.FontPath(db.font), size, "")
   fs:SetShadowColor(0, 0, 0, 1)
   fs:SetShadowOffset(1, -1)
   return fs

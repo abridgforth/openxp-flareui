@@ -26,9 +26,9 @@ MEDIA = {
     "Media/Fonts/CabinCondensed-Regular.ttf": 93196,
     "Media/Fonts/FiraSansExtraCondensed-Regular.ttf": 439548,
     "Media/Fonts/RobotoCondensed-Regular.ttf": 144848,
-    "License/FlareUI-LICENSE.txt": 1505,
-    "License/Fonts_OFL-1.1.txt": 4954,
-    "License/Font_RobotoCondensed_Apache-2.0.txt": 11720,
+    "Licenses-ThirdParty/FlareUI-LICENSE.txt": 1505,
+    "Licenses-ThirdParty/Fonts_OFL-1.1.txt": 4954,
+    "Licenses-ThirdParty/Font_RobotoCondensed_Apache-2.0.txt": 11720,
 }
 
 
@@ -91,15 +91,26 @@ class Build(unittest.TestCase):
             self.assertEqual(path.stat().st_size, size, f"wrong size: {rel}")
 
     def test_license_notices_and_attribution_are_included(self):
-        flare = (DIST / "License" / "FlareUI-LICENSE.txt").read_text()
+        flare = (DIST / "Licenses-ThirdParty" / "FlareUI-LICENSE.txt").read_text()
         self.assertIn("Malkkav", flare)              # attribution to FlareUI's author
         self.assertIn("MIT", flare)                  # FlareUI's MIT notice
         addon_license = (DIST / "LICENSE").read_text()
         self.assertIn("MIT License", addon_license)  # OXP-FUI's own MIT
         self.assertIn("Malkkav", addon_license)      # credits the look + art
         # Font licenses travel with the fonts.
-        self.assertIn("Open Font License", (DIST / "License" / "Fonts_OFL-1.1.txt").read_text())
-        self.assertIn("Apache License", (DIST / "License" / "Font_RobotoCondensed_Apache-2.0.txt").read_text())
+        self.assertIn("Open Font License", (DIST / "Licenses-ThirdParty" / "Fonts_OFL-1.1.txt").read_text())
+        self.assertIn("Apache License", (DIST / "Licenses-ThirdParty" / "Font_RobotoCondensed_Apache-2.0.txt").read_text())
+
+    def test_no_two_paths_differ_only_by_case(self):
+        # Windows (and macOS by default) treat names case-insensitively: a
+        # LICENSE file next to a License/ folder could not both be extracted,
+        # so the folder's files failed to unzip ("cannot find the path").
+        seen = {}
+        for path in sorted(DIST.rglob("*")):
+            rel = path.relative_to(DIST).as_posix()
+            key = rel.lower()
+            self.assertNotIn(key, seen, f"{rel} clashes with {seen.get(key)} on case-insensitive filesystems")
+            seen[key] = rel
 
     def test_zip_option_produces_a_zip_containing_the_addon(self):
         run_build("--zip")
