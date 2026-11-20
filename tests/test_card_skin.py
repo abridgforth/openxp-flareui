@@ -704,10 +704,22 @@ class StepListWindow(unittest.TestCase):
             edge, pill = anchors[i], anchors[i + 1]
             self.assertEqual(edge, "pill" if pill == "P" else "row", f"row {i // 2 + 1}")
 
-    def test_list_gets_bottom_padding_once(self):
+    def test_rows_move_down_from_the_header_and_bottom_keeps_openxps_8px(self):
         env = self._open()
-        expected = 28 + 6 * 18 + 8 + 6
+        expected = 28 + 6 * 18 + 8 + 8
         self.assertEqual(env.run("return HARNESS.cardBits.list:GetHeight()"), expected)
+        tops = env.run("""
+          local out = {}
+          for r, row in ipairs(HARNESS.cardBits.list.rows) do
+            for n = 1, #row.__points do
+              local p = row.__points[n]
+              if p[1] == 'TOPLEFT' then out[r] = p[5] end
+            end
+          end
+          return out[1], out[2], out[6]
+        """)
+        self.assertEqual(tops, (-36, -54, -126))
+        # Last row bottom: -126 - 18 = -144; list height 152 -> 8px left.
         env.run("OXPFUI.Reapply('again'); OXPFUI.Reapply('again')")
         self.assertEqual(env.run("return HARNESS.cardBits.list:GetHeight()"), expected)
 
@@ -733,13 +745,25 @@ class StepListWindow(unittest.TestCase):
         """)
         self.assertEqual(res, ("RIGHT", True, "RIGHT", -14, True))
 
-    def test_close_art_centres_on_the_title_band(self):
+    def test_close_art_sits_where_blizzard_puts_its_close_button(self):
         env = self._open()
         self.assertEqual(env.run("""
           local l = HARNESS.cardBits.list
-          local pt, rel = l.close.oxpfuiRed:GetPoint(1)
-          return pt, rel == l.oxpfuiBands.title
-        """), ("RIGHT", True))
+          local pt, rel, relPt, x, y = l.close.oxpfuiRed:GetPoint(1)
+          local w, h = l.close.oxpfuiRed:GetSize()
+          return pt, rel == l, relPt, x, y, w, h
+        """), ("TOPRIGHT", True, "TOPRIGHT", 1, 0, 24, 24))
+        # The click area is moved onto the art: OpenXP's 40x30 button at
+        # TOPRIGHT -4,-4 gets insets (21, -5, -4, 10).
+        insets = env.run("""
+          local calls = HARNESS.cardBits.list.close.__calls
+          for i = #calls, 1, -1 do
+            if calls[i][1] == 'SetHitRectInsets' then
+              return calls[i][2], calls[i][3], calls[i][4], calls[i][5]
+            end
+          end
+        """)
+        self.assertEqual(insets, (21, -5, -4, 10))
 
     def test_close_button_keeps_openxps_look_without_the_atlas(self):
         env = Env(load_addon=False)

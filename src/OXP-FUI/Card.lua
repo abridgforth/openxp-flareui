@@ -281,6 +281,7 @@ end
 -- Blizzard's windows do. Same button, size, spot and click; OpenXP's icon
 -- and wash are hidden while the art shows. Without the atlas (an older
 -- client) OpenXP's own look stays.
+local CLOSE_SIZE, CLOSE_X, CLOSE_Y = 24, 1, 0
 local function styleCloseButton(btn, list)
   local b = theme.RealFrame(btn)
   if not (b and b.CreateTexture) then return end
@@ -307,14 +308,25 @@ local function styleCloseButton(btn, list)
   end
   if b.icon then b.icon:SetAlpha(0) end
   if b.bg then b.bg:SetAlpha(0) end
-  -- Centred on the title's header band at the window's right inset, like a
-  -- Blizzard close button, rather than in OpenXP's taller 40x30 button
-  -- (still inside it, so the click area is unchanged).
+  -- Placed like Blizzard's own close button (UIPanelCloseButtonDefaultAnchors:
+  -- 24x24 at the window's TOPRIGHT, +1, 0, over the frame's corner). OpenXP's
+  -- button stays where it is; its click area is moved onto the art with
+  -- hit-rect insets (no layout change), so what you see is what you click.
   local l = theme.RealFrame(list)
-  local band = l and l.oxpfuiBands and l.oxpfuiBands.title
   art:ClearAllPoints()
-  if band and band.GetNumPoints and band:GetNumPoints() > 0 then
-    art:SetPoint("RIGHT", band, "RIGHT", -2, 0)
+  local point, rel, _, x, y = nil, nil, nil, 0, 0
+  if b.GetPoint then point, rel, _, x, y = b:GetPoint(1) end
+  local w, h = b:GetSize()
+  if l and point == "TOPRIGHT" and rel == l and type(w) == "number" and type(h) == "number" then
+    art:SetPoint("TOPRIGHT", l, "TOPRIGHT", CLOSE_X, CLOSE_Y)
+    x, y = x or 0, y or 0
+    -- Button rect (relative to the list's top-right): right x, top y, w x h.
+    -- Art rect: right CLOSE_X, top CLOSE_Y, CLOSE_SIZE square.
+    local left = (CLOSE_X - CLOSE_SIZE) - (x - w)
+    local right = x - CLOSE_X
+    local top = CLOSE_Y - y
+    local bottom = (y - h) - (CLOSE_Y - CLOSE_SIZE)
+    if b.SetHitRectInsets then b:SetHitRectInsets(left, right, -top, -bottom) end
   else
     art:SetPoint("CENTER", b, "CENTER")
   end
@@ -347,25 +359,36 @@ local function boundRowText(row)
   if text.SetWordWrap then text:SetWordWrap(false) end
 end
 
--- Layout exception (documented in Core.lua): OpenXP sizes the list to
--- 28 + rows * rowH + 8, leaving the last row 8px from the edge, which the
--- FlareUI border art covers. The list grows by LIST_BOTTOM_PAD so the last
--- row has room; only once per OpenXP-set height (idempotent).
-local LIST_BOTTOM_PAD = 6
-local function padListBottom(list)
+-- Layout exception 5 (Core.lua): OpenXP starts the rows 28px below the
+-- list's top, which is right under its own small title but leaves the first
+-- row against the title strip's bottom rod. The rows move down by
+-- LIST_TOP_PAD and the list grows by the same amount, so the bottom keeps
+-- OpenXP's own 8px. Rows are re-anchored exactly as OpenXP anchors them
+-- (TOPLEFT 4 / TOPRIGHT -4, rowH apart), only lower; idempotent.
+local LIST_TOP_PAD = 8
+local function padListTop(list)
   local l = theme.RealFrame(list)
   if not (l and l.GetHeight and l.SetHeight) then return end
   local rows = list.rows or {}
-  local expected = 28 + #rows * (list.rowH or 18) + 8
+  local rowH = list.rowH or 18
+  for r, row in ipairs(rows) do
+    local rr = theme.RealFrame(row)
+    if rr and rr.SetPoint then
+      local y = -28 - LIST_TOP_PAD - (r - 1) * rowH
+      rr:SetPoint("TOPLEFT", l, "TOPLEFT", 4, y)
+      rr:SetPoint("TOPRIGHT", l, "TOPRIGHT", -4, y)
+    end
+  end
+  local expected = 28 + #rows * rowH + 8
   local h = l:GetHeight()
   if type(h) == "number" and math.abs(h - expected) < 0.5 then
-    l:SetHeight(expected + LIST_BOTTOM_PAD)
+    l:SetHeight(expected + LIST_TOP_PAD)
   end
 end
 
 local function skinStepList(list, openxp)
   theme.ApplyBackdrop(list)
-  padListBottom(list)
+  padListTop(list)
   theme.ApplyText(list.title, "header", "TITLE")
   local rl, rt = theme.RealFrame(list), theme.RealFrame(list.title)
   if rl and rt and rl.GetChildren then theme.ApplyTitleStrips(rl, rt) end

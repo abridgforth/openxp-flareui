@@ -103,7 +103,23 @@ local function baseMethods(kind)
     GetWidth = function(self) return self.__width end,
     GetHeight = function(self) return self.__height end,
 
-    SetPoint = function(self, ...) record(self, "SetPoint", ...); self.__points[#self.__points + 1] = { ... } end,
+    SetPoint = function(self, ...)
+      record(self, "SetPoint", ...)
+      local point, a, b, c, d = ...
+      -- Real client: SetPoint(point, x, y) / SetPoint(point) mean relative
+      -- to the parent at the same point; GetPoint reports it that way.
+      local full
+      if a == nil or type(a) == "number" then
+        full = { point, self.__parent, point, a or 0, b or 0 }
+      else
+        full = { ... }
+      end
+      -- Setting a point that is already set replaces it (real client).
+      for i, existing in ipairs(self.__points) do
+        if existing[1] == point then self.__points[i] = full; return end
+      end
+      self.__points[#self.__points + 1] = full
+    end,
     SetAllPoints = function(self, rel) record(self, "SetAllPoints", rel); self.__points[#self.__points + 1] = { "*all*", rel } end,
     ClearAllPoints = function(self) record(self, "ClearAllPoints"); self.__points = {} end,
     GetNumPoints = function(self) return #self.__points end,

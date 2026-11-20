@@ -34,8 +34,9 @@ deliberate, re-applied after every OpenXP refresh, and listed here and in
    label unbounded, so long steps ran out of the window.) Status labels sit
    14 px in from the edge, clear of the border and scroll bar, and their
    plates fit the FlareUI font.
-5. **Step list bottom padding**: the list is 6 px taller so the last row
-   clears the border.
+5. **Step list top padding**: the rows start 8 px lower so the first row
+   clears the title strip, and the list grows by the same 8 px so the
+   bottom keeps OpenXP's spacing.
 
 ## Install
 
@@ -117,8 +118,10 @@ step progress line is repainted in the title colour (gold in the Blizzard
 scheme). When following FlareUI, its frame style decides whether
 separators are drawn; otherwise the **Section separators** check box does.
 
-The step list's close button wears Blizzard's red close-button art,
-centred on the title, and the list keeps the FlareUI font while scrolling.
+The step list's close button wears Blizzard's red close-button art, sized and
+placed like Blizzard's own (24×24 on the window's top-right corner), with
+its click area moved onto the art; the list keeps the FlareUI font while
+scrolling.
 
 The card's toolbar takes the look of FlareUI's tracker header buttons: each
 button is a dark square with a bronze rim (lit while pointed at) behind a

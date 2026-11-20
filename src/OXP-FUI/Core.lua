@@ -28,8 +28,9 @@
 --      so their text ran out of the window); the pill sits 14px in from the
 --      row's right edge, clear of the border and scroll bar, and is as wide
 --      as its label in the FlareUI font (+ OpenXP's 12px).
---   5. Step list bottom padding (Card.lua): the list grows a few px so the
---      last row clears the border art.
+--   5. Step list top padding (Card.lua): the rows start 8px lower, clear of
+--      the title strip's bottom rod, and the list grows by the same 8px so
+--      the bottom keeps OpenXP's own spacing.
 
 local ADDON_NAME, OXPFUI = ...
 
