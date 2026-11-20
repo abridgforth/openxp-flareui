@@ -35,36 +35,15 @@ OXPFUI.WINDOWS = {
   "tooltips",   -- lines OpenXP adds to mob/NPC tooltips
 }
 
-local function defaults()
-  local windows = {}
-  for _, key in ipairs(OXPFUI.WINDOWS) do windows[key] = true end
-  return {
-    enabled = true,
-    font = "Friz Quadrata", -- key into Theme.FONTS
-    opacity = 0.6,          -- panel fill opacity, 0..1
-    borderStyle = "Frames", -- Frames | Thick | Thin
-    windows = windows,
-    -- FlareUI Quest Tracker dock (Docking.lua)
-    attachTracker = true,   -- dock the guide card to the tracker
-    attachSide = "bottom",  -- bottom | top: the tracker edge docked to
-    attachPadding = 8,      -- px between the card and the tracker
-    matchTrackerWidth = false, -- card width follows the tracker width
-  }
-end
-
 -- Merge saved settings over the defaults in place, so OXPFUIDB always has
--- every key even after new options are introduced.
+-- every key even after new options are introduced. Keys, defaults and
+-- reload rules are declared once, in Settings.lua (loaded before any event
+-- can call this).
 function OXPFUI.InitDB()
   if type(_G.OXPFUIDB) ~= "table" then _G.OXPFUIDB = {} end
   local db = _G.OXPFUIDB
-  local d = defaults()
-  for key, value in pairs(d) do
-    if db[key] == nil then db[key] = value end
-  end
-  if type(db.windows) ~= "table" then db.windows = d.windows end
-  for _, key in ipairs(OXPFUI.WINDOWS) do
-    if db.windows[key] == nil then db.windows[key] = true end
-  end
+  if type(db.windows) ~= "table" then db.windows = {} end
+  OXPFUI.Settings.FillMissing(db)
   OXPFUI.db = db
   return db
 end

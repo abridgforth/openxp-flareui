@@ -18,16 +18,53 @@ Build the ready-to-copy addon folder, then copy it into your `Interface\AddOns`
     python3 tools/build.py            # writes dist/OXP-FUI/
     python3 tools/build.py --zip      # also writes dist/OXP-FUI-<version>.zip
 
-In game: `/oxpfui` opens the settings panel (master switch, one switch per
-window, font, border style, panel opacity, and the FlareUI Quest Tracker
-dock: attach on/off, top/bottom, padding, width match). `/oxpfui debug`
-prints a report:
+In game, `/oxpfui` opens the settings window. It is also listed under
+**Options → AddOns → OXP-FUI**. `/oxpfui debug` prints a report:
 the OpenXP version you run versus the tested one (see the
 `## X-Tested-OpenXP` TOC field), the master switch and per-window switches,
+whether the FlareUI style is being followed and what was read from it,
 how many apply passes ran, and the latest pass's outcome — which skins were
 skinned (`Skinned:`), what was skipped and why (`Skipped:`), errors
 (`Errors:`, plus `Earlier errors (previous passes):` as labelled history)
 and blocked layout attempts.
+
+## Settings window
+
+The window is built from the game's own UI templates, so it looks and
+works like Blizzard's settings: check boxes, dropdowns, sliders with `<` `>`
+steppers, a number box for the tracker padding, hover tooltips, and
+**Defaults / Cancel / Save** buttons.
+
+- **General:** Enable OXP-FUI skin, and *Follow FlareUI tracker style*.
+- **Windows:** one check box per OpenXP window.
+- **Appearance:** Font, Border style (Frames, Thick, Thin or None), Panel
+  opacity. These lock while the FlareUI style is being followed.
+- **FlareUI Quest Tracker:** the [tracker dock](#tracker-dock) settings.
+
+Changes are only a draft until you press **Save**. **Cancel**, the close
+button and Escape throw the draft away, and **Defaults** resets the draft
+(press Save to keep it).
+
+**Automatic reload.** Save reloads the UI by itself only when a change you
+made needs a reload to show. Before you save, the button reads
+**Save & Reload** and a note lists the settings that need it. A setting's
+tooltip also says when it needs a reload. Currently:
+
+| Setting | Needs a reload |
+|---|---|
+| Enable OXP-FUI skin | always |
+| A window switch (except Tooltip lines) | only when turned **off** |
+| Everything else | never — applied at once |
+
+## Follow FlareUI tracker style
+
+On by default. With FlareUI installed, the skins take the **opacity** and
+**border** saved in FlareUI's Quest Tracker settings (`FlareUI2_DB`, for the
+profile your character uses), and the **font** the tracker is drawn with.
+A FlareUI border of "None" draws no border. Anything OXP-FUI cannot read
+from FlareUI falls back to its own Appearance settings. FlareUI's saved
+settings are only read, never written. The style is re-read on every apply
+pass (an OpenXP refresh, a save, or `/reload`).
 
 ## Timer bars
 
@@ -59,7 +96,7 @@ card to it:
 While docked the card cannot be dragged (the dock owns its place — move
 the tracker instead); its resize grip keeps working, and OpenXP's own
 saved card position survives, so switching attach off puts the card back
-where you left it. Every dock control acts immediately, no reload needed.
+where you left it. Dock changes never need a reload.
 
 ## Repository layout
 
@@ -81,12 +118,35 @@ verified against a stubbed WoW API and a fake OpenXP (no game needed); the
 build tests verify the produced addon folder. A report is written to
 `tests/output/report.txt`.
 
+## Adding a setting
+
+Every saved setting is declared once in `src/OXP-FUI/Settings.lua` with
+`Settings.Define { key, kind, default, reload }`. `reload` is required:
+
+- `true` — any change needs a reload (e.g. the change only takes effect at
+  login);
+- `false` — the setting is re-read on every apply pass;
+- `function(old, new) ... end` — return `true` for the changes that need a
+  reload (e.g. a skin that can be added live but only removed by a reload).
+
+Missing `reload` is an error at load time, and `tests/test_settings.py`
+fails if the saved settings hold a key that is not declared. The window's
+Save button (`Settings.Commit`) writes the draft, re-applies live settings,
+and calls `Settings.Reload()` if — and only if — a changed setting's rule
+says so. Never call `ReloadUI()` directly; go through `Settings.Commit` or
+`Settings.Reload`. Add the control in `SettingsPanel.lua` with the
+`makeCheckbox` / `makeDropdown` / `makeSlider` helpers, which bind it to the
+draft and add its tooltip, including the reload note.
+
 ## Known limitations
 
 - OpenXP 1.3.48 exposes no visible inventory-manager window (only an
   invisible keybind button, an input-propagation helper and a hidden
   full-screen click passthrough), so the inventory-manager skin dresses the
   hidden delete-junk helper frame.
+- The settings window needs the game's modern UI templates (the Forever
+  client has them); it has been checked against the `forever` branch of
+  Blizzard's UI source, not in game.
 - The dock padding is measured in UI units at the card's own scale; with a
   non-default card scale the on-screen gap scales with it.
 
@@ -94,7 +154,7 @@ build tests verify the produced addon folder. A report is written to
 
 - OXP-FUI code: MIT (see `LICENSE`).
 - The bundled border art and fonts come from **FlareUI by Malkkav** (MIT) and
-  their font licenses; see `src/OXP-FUI/LICENSE` and `src/OXP-FUI/License/`.
+  their font licenses; see `src/OXP-FUI/LICENSE` and `src/OXP-FUI/Licenses-ThirdParty/`.
   The FlareUI look is re-implemented in new code; no FlareUI code is copied.
 - OpenXP (CC BY-NC-SA 4.0) is a runtime dependency, unmodified and
   unredistributed; no OpenXP code is included here.

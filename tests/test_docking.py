@@ -236,20 +236,25 @@ class PanelAndDebug(unittest.TestCase):
         env.boot()
         env.slash("/oxpfui")
         # Detach via the panel: back to the card's own position.
-        env.run("OXPFUIPanel.attachBtn:Click()")
+        env.run("OXPFUIPanel.attachBtn:Click(); OXPFUIPanel.saveBtn:Click()")
         self.assertIs(env.run("return OXPFUIDB.attachTracker"), False)
         self.assertEqual(card_anchor(env), ("RIGHT", "RIGHT", -40, 120, False))
-        # Side cycles bottom -> top; padding via the slider; attach back on.
-        env.run("OXPFUIPanel.attachSideBtn:Click()")
-        self.assertEqual(env.run("return OXPFUIDB.attachSide"), "top")
+        # Side via the dropdown; padding via the slider; attach back on.
+        env.slash("/oxpfui")
+        env.run("HARNESS.PickDropdown(OXPFUIPanel.attachSideDropdown, 'Top')")
         env.run("OXPFUIPanel.paddingSlider:SetValue(20)")
-        self.assertEqual(env.run("return OXPFUIDB.attachPadding"), 20)
         env.run("OXPFUIPanel.attachBtn:Click()")
+        env.run("OXPFUIPanel.saveBtn:Click()")
+        self.assertEqual(env.run("return OXPFUIDB.attachSide"), "top")
+        self.assertEqual(env.run("return OXPFUIDB.attachPadding"), 20)
         self.assertEqual(card_anchor(env), ("BOTTOMLEFT", "TOPLEFT", 0, 20, True))
         # Width match via the panel.
-        env.run("OXPFUIPanel.matchBtn:Click()")
+        env.slash("/oxpfui")
+        env.run("OXPFUIPanel.matchBtn:Click(); OXPFUIPanel.saveBtn:Click()")
         self.assertIs(env.run("return OXPFUIDB.matchTrackerWidth"), True)
         self.assertEqual(env.run("return OpenXPCard:GetWidth()"), 250)
+        # None of these needed a reload.
+        self.assertEqual(env.run("return HARNESS.reloads"), 0)
 
     def test_debug_report_tells_the_dock_state(self):
         env = Env(flareui=True)

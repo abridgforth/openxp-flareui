@@ -1,298 +1,469 @@
--- OXP-FUI · SettingsPanel: the /oxpfui panel, in the FlareUI look.
+-- OXP-FUI · SettingsPanel: the /oxpfui window, built from Blizzard's own
+-- UI templates so it looks and behaves like the game's settings:
 --
--- The panel is an OXP-FUI-owned frame (it never touches OpenXP frames):
--- FlareUI backdrop, gold Friz Quadrata title, procedural bronze square
--- buttons, one switch per window, font/border/opacity controls. Saves into
--- OXPFUIDB.
+--   ButtonFrameTemplate     window, title bar, close (X) button
+--   UICheckButtonTemplate   on/off settings
+--   WowStyle1DropdownTemplate  choices (font, border, tracker edge)
+--   MinimalSliderWithSteppersTemplate  ranges, with < > steppers
+--   InputBoxTemplate        typed number entry (tracker padding)
+--   UIPanelButtonTemplate   Defaults / Cancel / Save
+--   GameTooltip             hover help, incl. "requires a UI reload"
+--
+-- Edits go into a draft (Settings.NewDraft). Nothing is saved until Save:
+-- Settings.Commit writes the db, re-applies live settings and reloads the
+-- UI if and only if a changed setting requires it (declared per setting in
+-- Settings.lua). Cancel, X and Escape discard the draft. The panel is also
+-- listed under Options > AddOns with a button that opens this window.
+--
+-- The panel is an OXP-FUI-owned frame: it never touches OpenXP frames.
 
 local ADDON_NAME, OXPFUI = ...
 
 local L = OXPFUI.L
 local theme = OXPFUI.theme
+local Settings = OXPFUI.Settings
 
 local panel -- built lazily on first open
 
--- Procedural bronze square toggle (FlareUI box button look, simplified):
--- bronze outline, dark fill, bronze inner square when on, lit on hover.
-local function makeToggle(parent, getDescription)
-  local btn = CreateFrame("Button", nil, parent)
-  btn:SetSize(12, 12)
-  btn.border = btn:CreateTexture(nil, "OVERLAY")
-  btn.border:SetColorTexture(theme.C.BOX[1], theme.C.BOX[2], theme.C.BOX[3], 1)
-  btn.border:SetAllPoints(btn)
-  btn.fill = btn:CreateTexture(nil, "ARTWORK")
-  btn.fill:SetColorTexture(0, 0, 0, 0.85)
-  btn.fill:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
-  btn.fill:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1, 1)
-  btn.dot = btn:CreateTexture(nil, "OVERLAY")
-  btn.dot:SetPoint("TOPLEFT", btn, "TOPLEFT", 3, -3)
-  btn.dot:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -3, 3)
+local WIDTH, HEIGHT = 460, 640
+local LEFT = 20
+local COL2 = 230
 
-  local function paint()
-    local desc = getDescription()
-    local c = desc.lit and theme.C.BOX_LIT or theme.C.BOX
-    if desc.isOn then
-      btn.dot:SetColorTexture(c[1], c[2], c[3], 1)
-      btn.dot:Show()
-    else
-      btn.dot:Hide()
-    end
-    btn.border:SetColorTexture(c[1], c[2], c[3], 1)
+-- ---------------------------------------------------------------------------
+-- Small helpers
+-- ---------------------------------------------------------------------------
+
+local function safe(obj, method, ...)
+  if type(obj) == "table" and type(obj[method]) == "function" then
+    return obj[method](obj, ...)
   end
-
-  btn:SetScript("OnEnter", function() getDescription().hover = true; paint() end)
-  btn:SetScript("OnLeave", function() getDescription().hover = false; paint() end)
-  btn.paint = paint
-  paint()
-  return btn
 end
 
-local function label(parent, text, kind, colorName)
-  local fs = parent:CreateFontString(nil, "OVERLAY")
-  -- Font before text: a fresh font string has no font, and the client
-  -- raises "FontString:SetText(): Font not set" if SetText runs first.
-  theme.ApplyText(fs, kind or "body", colorName or "OBJECTIVE")
-  fs:SetText(text)
+local function setEnabled(widget, enabled)
+  if type(widget) ~= "table" then return end
+  if type(widget.SetEnabled) == "function" then
+    widget:SetEnabled(enabled)
+  elseif enabled then
+    safe(widget, "Enable")
+  else
+    safe(widget, "Disable")
+  end
+end
+
+local function fontString(parent, fontObject, text)
+  -- Inheriting a font object gives the string its font before SetText (a
+  -- fresh string without one raises "Font not set").
+  local fs = parent:CreateFontString(nil, "ARTWORK", fontObject)
+  fs:SetText(text or "")
+  fs:SetJustifyH("LEFT")
   return fs
 end
 
--- A settings cycle button (font choice, border style): dark plate with a
--- centred bronze label. Size, anchor and OnClick are the caller's.
-local function makeCycleButton(parent)
-  local btn = CreateFrame("Button", nil, parent)
-  btn.tex = btn:CreateTexture(nil, "BACKGROUND")
-  btn.tex:SetAllPoints(btn)
-  btn.tex:SetColorTexture(0, 0, 0, 0.5)
-  btn.text = btn:CreateFontString(nil, "OVERLAY")
-  btn.text:SetAllPoints(btn)
-  btn.text:SetJustifyH("CENTER")
-  theme.ApplyText(btn.text, "body", "ZONE")
-  return btn
+local function header(parent, text, y)
+  local fs = fontString(parent, "GameFontNormalLarge", text)
+  fs:SetPoint("TOPLEFT", parent, "TOPLEFT", LEFT, y)
+  return fs
 end
 
-local ROW = 22
+-- Tooltip with the setting's help text and its reload rule.
+local function reloadTip(def)
+  if not def then return nil end
+  local r = def.reload
+  if r == true then return L.requiresReloadTip end
+  if type(r) == "function" and Settings.NeedsReload(def, true, false) then
+    return L.requiresReloadOffTip
+  end
+  return nil
+end
+
+local function attachTooltip(widget, title, body, def)
+  if type(widget) ~= "table" or not widget.SetScript then return end
+  widget:SetScript("OnEnter", function(self)
+    if not GameTooltip or not GameTooltip.SetOwner then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(title, 1, 1, 1)
+    if body then GameTooltip:AddLine(body, nil, nil, nil, true) end
+    local note = reloadTip(def)
+    if note then GameTooltip:AddLine(note, 1, 0.82, 0, true) end
+    GameTooltip:Show()
+  end)
+  widget:SetScript("OnLeave", function()
+    if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
+  end)
+end
+
+-- ---------------------------------------------------------------------------
+-- Controls. Each returns a control { key, widget, label, Refresh() } whose
+-- widget writes into panel.draft[key] and calls panel:OnDraftChanged().
+-- ---------------------------------------------------------------------------
+
+local function makeCheckbox(f, key, text, tip, x, y)
+  local def = Settings.Get(key)
+  local cb = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
+  cb:SetSize(26, 26)
+  cb:SetPoint("TOPLEFT", f, "TOPLEFT", x, y)
+  local label = cb.Text or cb.text
+  if label then
+    label:SetFontObject("GameFontHighlight")
+    label:SetText(text)
+  else
+    label = fontString(cb, "GameFontHighlight", text)
+    label:SetPoint("LEFT", cb, "RIGHT", 2, 0)
+  end
+  cb:SetScript("OnClick", function(self)
+    f.draft[key] = self:GetChecked() and true or false
+    f:OnDraftChanged()
+  end)
+  attachTooltip(cb, text, tip, def)
+  local control = { key = key, widget = cb, label = text }
+  function control.Refresh() cb:SetChecked(f.draft[key] == true) end
+  f.controls[key] = control
+  return cb
+end
+
+local function makeDropdown(f, key, text, tip, y, options)
+  -- options: list of { value = ..., text = ... }
+  local def = Settings.Get(key)
+  local fs = fontString(f.content, "GameFontHighlight", text)
+  fs:SetPoint("TOPLEFT", f, "TOPLEFT", LEFT + 4, y - 6)
+  local dd = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
+  dd:SetWidth(200)
+  dd:SetPoint("TOPLEFT", f, "TOPLEFT", COL2, y)
+  local function textFor(value)
+    for _, o in ipairs(options) do
+      if o.value == value then return o.text end
+    end
+    return tostring(value)
+  end
+  safe(dd, "SetDefaultText", textFor(def.default))
+  safe(dd, "SetupMenu", function(_, root)
+    for _, o in ipairs(options) do
+      root:CreateRadio(o.text,
+        function(value) return f.draft and f.draft[key] == value end,
+        function(value)
+          f.draft[key] = value
+          f:OnDraftChanged()
+        end,
+        o.value)
+    end
+  end)
+  attachTooltip(dd, text, tip, def)
+  local control = { key = key, widget = dd, label = text, labelString = fs, textFor = textFor }
+  -- Regenerating re-reads isSelected, which also updates the shown text.
+  function control.Refresh() safe(dd, "GenerateMenu") end
+  f.controls[key] = control
+  return dd
+end
+
+local function makeSlider(f, key, text, tip, y, format)
+  local def = Settings.Get(key)
+  local fs = fontString(f.content, "GameFontHighlight", text)
+  fs:SetPoint("TOPLEFT", f, "TOPLEFT", LEFT + 4, y - 6)
+  local sl = CreateFrame("Frame", nil, f, "MinimalSliderWithSteppersTemplate")
+  sl:SetSize(200, 20)
+  sl:SetPoint("TOPLEFT", f, "TOPLEFT", COL2, y - 2)
+  local steps = math.floor((def.max - def.min) / def.step + 0.5)
+  local formatters = {}
+  local labels = MinimalSliderWithSteppersMixin and MinimalSliderWithSteppersMixin.Label
+  if labels and labels.Right then formatters[labels.Right] = format end
+  local initial = f.draft and f.draft[key] or def.default
+  safe(sl, "Init", initial, def.min, def.max, steps, formatters)
+  local event = MinimalSliderWithSteppersMixin and MinimalSliderWithSteppersMixin.Event
+    and MinimalSliderWithSteppersMixin.Event.OnValueChanged
+  local function onValue(_, value)
+    local snapped = def.min + math.floor((value - def.min) / def.step + 0.5) * def.step
+    if snapped < def.min then snapped = def.min end
+    if snapped > def.max then snapped = def.max end
+    -- Two decimals is plenty and keeps 0.6 == 0.6 after stepping.
+    snapped = math.floor(snapped * 100 + 0.5) / 100
+    if f.draft[key] ~= snapped then
+      f.draft[key] = snapped
+      f:OnDraftChanged(key)
+    end
+  end
+  if event then safe(sl, "RegisterCallback", event, onValue, sl) end
+  attachTooltip(sl, text, tip, def)
+  local control = { key = key, widget = sl, label = text, labelString = fs }
+  function control.Refresh() safe(sl, "SetValue", f.draft[key]) end
+  f.controls[key] = control
+  return sl
+end
+
+-- A numeric box bound to a range setting (typed entry beside its slider).
+local function makeNumberInput(f, key, slider)
+  local def = Settings.Get(key)
+  local eb = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+  eb:SetSize(34, 20)
+  eb:SetPoint("LEFT", slider, "RIGHT", 14, 0)
+  eb:SetAutoFocus(false)
+  safe(eb, "SetNumeric", true)
+  safe(eb, "SetMaxLetters", #tostring(def.max))
+  safe(eb, "SetJustifyH", "CENTER")
+  local function show() eb:SetText(tostring(f.draft[key] or def.default)) end
+  local function commitText()
+    local n = tonumber(eb:GetText())
+    if n then
+      n = math.max(def.min, math.min(def.max, math.floor(n + 0.5)))
+      f.draft[key] = n
+      safe(slider, "SetValue", n)
+      f:OnDraftChanged(key)
+    end
+    show()
+  end
+  eb:SetScript("OnEnterPressed", function(self) commitText(); self:ClearFocus() end)
+  eb:SetScript("OnEditFocusLost", function() commitText() end)
+  eb:SetScript("OnEscapePressed", function(self) show(); self:ClearFocus() end)
+  attachTooltip(eb, L.attachPaddingLabel, L.attachPaddingTip, def)
+  return eb, show
+end
+
+-- ---------------------------------------------------------------------------
+-- The window
+-- ---------------------------------------------------------------------------
 
 local function buildPanel()
-  local db = OXPFUI.db
-
-  -- BackdropTemplate: theme.ApplyBackdrop needs the frame's SetBackdrop
-  -- (a plain frame has none on this client family).
-  local f = CreateFrame("Frame", "OXPFUIPanel", UIParent, "BackdropTemplate")
-  f:SetSize(340, 500)
+  local f = CreateFrame("Frame", "OXPFUIPanel", UIParent, "ButtonFrameTemplate")
+  f:SetSize(WIDTH, HEIGHT)
   f:SetPoint("CENTER", UIParent, "CENTER")
   f:SetFrameStrata("DIALOG")
+  f:SetToplevel(true)
+  f:SetClampedToScreen(true)
   f:SetMovable(true)
   f:EnableMouse(true)
-  theme.ApplyBackdrop(f)
+  f:RegisterForDrag("LeftButton")
+  f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+  f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+  if ButtonFrameTemplate_HidePortrait then pcall(ButtonFrameTemplate_HidePortrait, f) end
+  safe(f, "SetTitle", L.panelTitle)
+  if f.Inset then
+    f.Inset:ClearAllPoints()
+    f.Inset:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -26)
+    f.Inset:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -6, 32)
+  end
+  -- Text layer above the Inset: the template draws the Inset at the
+  -- window's own frame level, which would cover strings drawn on the
+  -- window itself. Controls are child frames and already sit above it.
+  f.content = CreateFrame("Frame", nil, f)
+  f.content:SetAllPoints(f)
+  f.content:SetFrameLevel((f:GetFrameLevel() or 0) + 2)
 
   -- Hidden until the build completes (OpenPanel shows it): a mid-build
-  -- error must never leave a shown, empty, closeless panel on screen.
-  -- Escape closes the panel too, via the client's UISpecialFrames list.
+  -- error must never leave a shown, half-built panel on screen. Escape
+  -- closes it (= Cancel) via the client's UISpecialFrames list.
   f:Hide()
   tinsert(UISpecialFrames, f:GetName())
 
-  -- Header ---------------------------------------------------------------
-  f.title = label(f, L.panelTitle, "header", "TITLE")
-  f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -8)
+  f.controls = {}
+  f.draft = Settings.NewDraft()
 
-  f.subtitle = label(f, L.panelSubtitle, "body", "ZONE")
-  f.subtitle:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -2)
-
-  f.closeBtn = CreateFrame("Button", nil, f)
-  f.closeBtn:SetSize(12, 12)
-  f.closeBtn:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -8)
-  f.closeBtn.tex = f.closeBtn:CreateTexture(nil, "OVERLAY")
-  f.closeBtn.tex:SetAllPoints(f.closeBtn)
-  f.closeBtn.tex:SetColorTexture(theme.C.BOX[1], theme.C.BOX[2], theme.C.BOX[3], 1)
-  f.closeBtn.mark = label(f.closeBtn, "×")
-  f.closeBtn.mark:SetAllPoints(f.closeBtn)
-  f.closeBtn:SetScript("OnClick", function() f:Hide() end)
-
-  -- Version note (only when installed != tested OpenXP) --------------------
-  local mismatch = OXPFUI.VersionMismatch()
+  -- Subtitle + version note ------------------------------------------------
+  f.subtitle = fontString(f.content, "GameFontHighlightSmall", L.panelSubtitle)
+  f.subtitle:SetPoint("TOPLEFT", f, "TOPLEFT", LEFT, -36)
+  local mismatch = OXPFUI.VersionMismatch and OXPFUI.VersionMismatch()
   if mismatch then
-    f.versionNote = label(f, L.versionNote:format(mismatch, OXPFUI.testedOpenXP),
-                          "body", "URGENT")
-    f.versionNote:SetPoint("TOPLEFT", f.subtitle, "BOTTOMLEFT", 0, -4)
-    -- Right edge pinned to the pane so an unusually long note wraps instead
-    -- of overflowing (the text is sized to fit on one line normally).
-    f.versionNote:SetPoint("RIGHT", f, "RIGHT", -10, 0)
+    f.versionNote = fontString(f.content, "GameFontRedSmall",
+      L.versionNote:format(mismatch, OXPFUI.testedOpenXP))
+    f.versionNote:SetPoint("TOPLEFT", f.subtitle, "BOTTOMLEFT", 0, -2)
+    -- Pinned to the pane's right edge so a long note wraps, not overflows.
+    f.versionNote:SetPoint("RIGHT", f, "RIGHT", -LEFT, 0)
   end
 
-  -- Master switch ---------------------------------------------------------
-  local masterDesc = { isOn = db.enabled, hover = false }
-  f.masterBtn = makeToggle(f, function() return masterDesc end)
-  f.masterBtn:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -58)
-  f.masterBtn:SetScript("OnClick", function()
-    db.enabled = not db.enabled
-    masterDesc.isOn = db.enabled
-    f.masterBtn.paint()
-    OXPFUI.Reapply("settings changed")
-    if OXPFUI.Dock and OXPFUI.Dock.Update then
-      OXPFUI.Dock.Update("settings changed")
-    end
-  end)
-  f.masterLabel = label(f, L.masterLabel, "title", "TITLE")
-  f.masterLabel:SetPoint("LEFT", f.masterBtn, "RIGHT", 6, 0)
+  -- General ------------------------------------------------------------------
+  local y = -62
+  f.generalHeader = header(f.content, L.generalHeader, y)
+  y = y - 22
+  f.masterBtn = makeCheckbox(f, "enabled", L.masterLabel, L.masterTip, LEFT, y)
+  f.followBtn = makeCheckbox(f, "followFlareUI", L.followLabel, L.followTip, COL2, y)
 
-  -- Windows ---------------------------------------------------------------
-  f.windowsHeader = label(f, L.windowsHeader, "header", "ZONE")
-  f.windowsHeader:SetPoint("TOPLEFT", f.masterBtn, "BOTTOMLEFT", 0, -12)
-
+  -- Windows ------------------------------------------------------------------
+  y = y - 36
+  f.windowsHeader = header(f.content, L.windowsHeader, y)
+  y = y - 22
   f.windowBtns = {}
-  local COLS, startY = 2, -96
-  local colWidth = 160
-  for i, key in ipairs(OXPFUI.WINDOWS) do
-    local col = (i - 1) % COLS
-    local row = math.floor((i - 1) / COLS)
-    local desc = { isOn = db.windows[key] ~= false, hover = false }
-    local btn = makeToggle(f, function() return desc end)
-    btn:SetPoint("TOPLEFT", f, "TOPLEFT", 10 + col * colWidth, startY - row * ROW)
-    btn:SetScript("OnClick", function()
-      db.windows[key] = not (db.windows[key] ~= false)
-      desc.isOn = db.windows[key] ~= false
-      btn.paint()
-      OXPFUI.Reapply("settings changed")
-    end)
-    local fs = label(f, L.windows[key], "body", "OBJECTIVE")
-    fs:SetPoint("LEFT", btn, "RIGHT", 6, 0)
-    f.windowBtns[key] = btn
+  for i, w in ipairs(OXPFUI.WINDOWS) do
+    local col = (i - 1) % 2
+    local row = math.floor((i - 1) / 2)
+    f.windowBtns[w] = makeCheckbox(f, "windows." .. w, L.windows[w], L.windowsTip,
+      col == 0 and LEFT or COL2, y - row * 26)
+  end
+  y = y - math.ceil(#OXPFUI.WINDOWS / 2) * 26 - 10
+
+  -- Appearance ----------------------------------------------------------------
+  f.appearanceHeader = header(f.content, L.appearanceHeader, y)
+  f.styleNote = fontString(f.content, "GameFontDisableSmall", "")
+  f.styleNote:SetPoint("LEFT", f.appearanceHeader, "RIGHT", 10, 0)
+  f.styleNote:SetPoint("RIGHT", f, "RIGHT", -LEFT, 0)
+  y = y - 26
+  local fontOptions = {}
+  for _, entry in ipairs(theme.FONTS) do
+    fontOptions[#fontOptions + 1] = { value = entry.key, text = entry.key }
+  end
+  f.fontDropdown = makeDropdown(f, "font", L.fontLabel, L.fontTip, y, fontOptions)
+  y = y - 32
+  local borderOptions = {}
+  for _, k in ipairs(theme.BORDER_ORDER) do
+    borderOptions[#borderOptions + 1] = { value = k, text = L.borderNames[k] or k }
+  end
+  f.borderDropdown = makeDropdown(f, "borderStyle", L.borderLabel, L.borderTip, y, borderOptions)
+  y = y - 32
+  f.opacitySlider = makeSlider(f, "opacity", L.opacityLabel, L.opacityTip, y,
+    function(v) return L.opacityValue:format(math.floor(v * 100 + 0.5)) end)
+
+  -- FlareUI Quest Tracker ----------------------------------------------------
+  y = y - 40
+  f.trackerHeader = header(f.content, L.trackerHeader, y)
+  y = y - 22
+  f.attachBtn = makeCheckbox(f, "attachTracker", L.attachLabel, L.attachTip, LEFT, y)
+  y = y - 30
+  f.attachSideDropdown = makeDropdown(f, "attachSide", L.attachSideLabel, L.attachSideTip, y, {
+    { value = "bottom", text = L.sideBottom },
+    { value = "top", text = L.sideTop },
+  })
+  y = y - 32
+  f.paddingSlider = makeSlider(f, "attachPadding", L.attachPaddingLabel, L.attachPaddingTip, y,
+    function(v) return L.attachPaddingValue:format(math.floor(v + 0.5)) end)
+  f.paddingSlider:SetWidth(160)
+  f.paddingInput, f.showPaddingText = makeNumberInput(f, "attachPadding", f.paddingSlider)
+  y = y - 30
+  f.matchBtn = makeCheckbox(f, "matchTrackerWidth", L.matchWidthLabel, L.matchWidthTip, LEFT, y)
+
+  -- Reload note (shown only when the pending changes need a reload) -------
+  f.reloadNote = fontString(f.content, "GameFontNormalSmall", "")
+  f.reloadNote:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", LEFT, 40)
+  f.reloadNote:SetPoint("RIGHT", f, "RIGHT", -LEFT, 0)
+  safe(f.reloadNote, "SetWordWrap", true)
+  f.reloadNote:Hide()
+
+  -- Buttons --------------------------------------------------------------------
+  local function button(text, w)
+    local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    b:SetSize(w or 96, 22)
+    b:SetText(text)
+    return b
+  end
+  f.saveBtn = button(L.saveButton, 120)
+  f.saveBtn:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -8, 6)
+  f.cancelBtn = button(L.cancelButton)
+  f.cancelBtn:SetPoint("RIGHT", f.saveBtn, "LEFT", -4, 0)
+  f.defaultsBtn = button(L.defaultsButton)
+  f.defaultsBtn:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 10, 6)
+
+  f.saveBtn:SetScript("OnClick", function() f:Save() end)
+  f.cancelBtn:SetScript("OnClick", function() f:Hide() end)
+  f.defaultsBtn:SetScript("OnClick", function()
+    f.draft = Settings.DefaultDraft()
+    f:RefreshControls()
+  end)
+
+  -- Behaviour --------------------------------------------------------------------
+  function f:RefreshControls()
+    for _, control in pairs(self.controls) do control.Refresh() end
+    if self.showPaddingText then self.showPaddingText() end
+    self:OnDraftChanged()
   end
 
-  -- Font choice (cycle button) ---------------------------------------------
-  local function fontIndex()
-    for i, entry in ipairs(theme.FONTS) do
-      if entry.key == db.font then return i end
+  -- Pending changes drive the Save button, the reload note and the
+  -- follow-FlareUI lock on the appearance controls.
+  function f:OnDraftChanged(fromKey)
+    local changes = Settings.Changes(self.draft)
+    local needsReload = Settings.ChangesNeedReload(changes)
+    setEnabled(self.saveBtn, #changes > 0)
+    self.saveBtn:SetText(needsReload and L.saveReloadButton or L.saveButton)
+    if needsReload then
+      local names = {}
+      for _, c in ipairs(changes) do
+        if c.reload then
+          local control = self.controls[c.def.key]
+          names[#names + 1] = control and control.label or c.def.key
+        end
+      end
+      self.reloadNote:SetText(L.reloadPending:format(table.concat(names, ", ")))
+      self.reloadNote:Show()
+    else
+      self.reloadNote:Hide()
     end
-    return 1
+
+    local flareAvailable = OXPFUI.FlareStyle and OXPFUI.FlareStyle.Available()
+    local following = self.draft.followFlareUI == true and flareAvailable
+    for _, key in ipairs({ "font", "borderStyle", "opacity" }) do
+      local control = self.controls[key]
+      if control then setEnabled(control.widget, not following) end
+    end
+    if following then
+      self.styleNote:SetText(L.followActiveNote)
+    elseif self.draft.followFlareUI == true then
+      self.styleNote:SetText(L.flareMissingNote)
+    else
+      self.styleNote:SetText("")
+    end
+    if fromKey == "attachPadding" and self.showPaddingText then self.showPaddingText() end
   end
 
-  f.fontLabel = label(f, L.fontLabel, "title", "TITLE")
-  f.fontLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -240)
-  f.fontBtn = makeCycleButton(f)
-  f.fontBtn:SetSize(160, 18)
-  f.fontBtn:SetPoint("LEFT", f.fontLabel, "RIGHT", 10, 0)
-  f.fontBtn:SetScript("OnClick", function()
-    db.font = theme.FONTS[fontIndex() % #theme.FONTS + 1].key
-    f.fontBtn.text:SetText(db.font)
-    OXPFUI.Reapply("settings changed")
-  end)
-  f.fontBtn.text:SetText(db.font)
-
-  -- Border style (cycle button) --------------------------------------------
-  local borderKeys = { "Frames", "Thick", "Thin" }
-  f.borderLabel = label(f, L.borderLabel, "title", "TITLE")
-  f.borderLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -266)
-  f.borderBtn = makeCycleButton(f)
-  f.borderBtn:SetSize(160, 18)
-  f.borderBtn:SetPoint("LEFT", f.borderLabel, "RIGHT", 10, 0)
-  f.borderBtn:SetScript("OnClick", function()
-    local current
-    for i, k in ipairs(borderKeys) do
-      if k == db.borderStyle then current = i end
-    end
-    db.borderStyle = borderKeys[(current or 1) % #borderKeys + 1]
-    f.borderBtn.text:SetText(db.borderStyle)
-    OXPFUI.Reapply("settings changed")
-  end)
-  f.borderBtn.text:SetText(db.borderStyle)
-
-  -- Opacity slider ----------------------------------------------------------
-  f.opacityLabel = label(f, L.opacityLabel, "title", "TITLE")
-  f.opacityLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -294)
-  f.opacitySlider = CreateFrame("Slider", nil, f)
-  f.opacitySlider:SetSize(160, 18)
-  f.opacitySlider:SetPoint("LEFT", f.opacityLabel, "RIGHT", 10, 0)
-  f.opacitySlider:SetMinMaxValues(0, 1)
-  f.opacitySlider:SetValueStep(0.05)
-  f.opacitySlider:SetValue(db.opacity)
-  f.opacityValue = label(f, L.opacityValue:format(math.floor(db.opacity * 100 + 0.5)))
-  f.opacityValue:SetPoint("LEFT", f.opacitySlider, "RIGHT", 8, 0)
-  f.opacitySlider:SetScript("OnValueChanged", function(_, value)
-    db.opacity = math.floor(value * 20 + 0.5) / 20
-    f.opacityValue:SetText(L.opacityValue:format(math.floor(db.opacity * 100 + 0.5)))
-    OXPFUI.Reapply("settings changed")
-  end)
-
-  -- FlareUI Quest Tracker dock ----------------------------------------------
-  -- Every control here acts immediately (no reload needed): Docking.lua
-  -- re-anchors the card on each change.
-  local function dockChanged()
-    if OXPFUI.Dock and OXPFUI.Dock.Update then
-      OXPFUI.Dock.Update("settings changed")
-    end
+  function f:Save()
+    local draft = self.draft
+    self.saving = true
+    local _, reloaded = Settings.Commit(draft)
+    self.saving = false
+    if not reloaded then self:Hide() end
   end
 
-  f.trackerHeader = label(f, L.trackerHeader, "header", "ZONE")
-  f.trackerHeader:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -326)
-
-  local attachDesc = { isOn = db.attachTracker ~= false, hover = false }
-  f.attachBtn = makeToggle(f, function() return attachDesc end)
-  f.attachBtn:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -344)
-  f.attachBtn:SetScript("OnClick", function()
-    db.attachTracker = not (db.attachTracker ~= false)
-    attachDesc.isOn = db.attachTracker ~= false
-    f.attachBtn.paint()
-    dockChanged()
+  -- Every open starts from the saved settings; closing discards the draft.
+  f:SetScript("OnShow", function(self)
+    self.draft = Settings.NewDraft()
+    self:RefreshControls()
   end)
-  f.attachLabel = label(f, L.attachLabel, "body", "OBJECTIVE")
-  f.attachLabel:SetPoint("LEFT", f.attachBtn, "RIGHT", 6, 0)
-
-  f.attachSideLabel = label(f, L.attachSideLabel, "title", "TITLE")
-  f.attachSideLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -370)
-  f.attachSideBtn = makeCycleButton(f)
-  f.attachSideBtn:SetSize(160, 18)
-  f.attachSideBtn:SetPoint("LEFT", f.attachSideLabel, "RIGHT", 10, 0)
-  f.attachSideBtn:SetScript("OnClick", function()
-    db.attachSide = db.attachSide == "top" and "bottom" or "top"
-    f.attachSideBtn.text:SetText(db.attachSide == "top" and L.sideTop or L.sideBottom)
-    dockChanged()
-  end)
-  f.attachSideBtn.text:SetText(db.attachSide == "top" and L.sideTop or L.sideBottom)
-
-  f.paddingLabel = label(f, L.attachPaddingLabel, "title", "TITLE")
-  f.paddingLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -396)
-  f.paddingSlider = CreateFrame("Slider", nil, f)
-  f.paddingSlider:SetSize(100, 18)
-  f.paddingSlider:SetPoint("LEFT", f.paddingLabel, "RIGHT", 10, 0)
-  f.paddingSlider:SetMinMaxValues(0, 40)
-  f.paddingSlider:SetValueStep(1)
-  f.paddingSlider:SetValue(tonumber(db.attachPadding) or 8)
-  f.paddingValue = label(f, L.attachPaddingValue:format(tonumber(db.attachPadding) or 8))
-  f.paddingValue:SetPoint("LEFT", f.paddingSlider, "RIGHT", 8, 0)
-  f.paddingSlider:SetScript("OnValueChanged", function(_, value)
-    db.attachPadding = math.floor(value + 0.5)
-    f.paddingValue:SetText(L.attachPaddingValue:format(db.attachPadding))
-    dockChanged()
+  f:SetScript("OnHide", function(self)
+    if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
+    self.draft = Settings.NewDraft()
   end)
 
-  local matchDesc = { isOn = db.matchTrackerWidth == true, hover = false }
-  f.matchBtn = makeToggle(f, function() return matchDesc end)
-  f.matchBtn:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -424)
-  f.matchBtn:SetScript("OnClick", function()
-    db.matchTrackerWidth = not (db.matchTrackerWidth == true)
-    matchDesc.isOn = db.matchTrackerWidth == true
-    f.matchBtn.paint()
-    dockChanged()
-  end)
-  f.matchLabel = label(f, L.matchWidthLabel, "body", "OBJECTIVE")
-  f.matchLabel:SetPoint("LEFT", f.matchBtn, "RIGHT", 6, 0)
-
-  -- Reload note --------------------------------------------------------------
-  f.reloadNote = label(f, L.reloadNote, "body", "DIM")
-  f.reloadNote:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 10, 10)
-  -- Same wrap safety net as the version note: pinned right, grows upward.
-  f.reloadNote:SetPoint("RIGHT", f, "RIGHT", -10, 0)
-
+  f:RefreshControls()
   return f
 end
 
 function OXPFUI.OpenPanel()
   if not panel then panel = buildPanel() end
-  panel:Show()
+  if panel:IsShown() then
+    panel:Raise()
+  else
+    panel:Show()
+  end
   return panel
 end
 
 function OXPFUI.Panel() -- for tests and debugging
   return panel
 end
+
+-- ---------------------------------------------------------------------------
+-- Options > AddOns entry: a short page with a button that opens the window.
+-- ---------------------------------------------------------------------------
+
+local function registerOptionsCategory()
+  local S = rawget(_G, "Settings")
+  if type(S) ~= "table" or type(S.RegisterCanvasLayoutCategory) ~= "function" then return end
+  local page = CreateFrame("Frame", "OXPFUIOptionsPage")
+  page.name = L.panelTitle
+  local title = fontString(page, "GameFontNormalLarge", L.panelTitle)
+  title:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -16)
+  local desc = fontString(page, "GameFontHighlight", L.optionsDescription)
+  desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
+  desc:SetPoint("RIGHT", page, "RIGHT", -16, 0)
+  local open = CreateFrame("Button", nil, page, "UIPanelButtonTemplate")
+  open:SetSize(200, 24)
+  open:SetText(L.openSettingsButton)
+  open:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -12)
+  open:SetScript("OnClick", function()
+    local sp = rawget(_G, "SettingsPanel")
+    if sp and HideUIPanel then pcall(HideUIPanel, sp) end
+    OXPFUI.OpenPanel()
+  end)
+  page.openButton = open
+  local category = S.RegisterCanvasLayoutCategory(page, L.panelTitle)
+  if type(S.RegisterAddOnCategory) == "function" then S.RegisterAddOnCategory(category) end
+  OXPFUI.optionsCategory = category
+  OXPFUI.optionsPage = page
+end
+
+local ok, err = pcall(registerOptionsCategory)
+if not ok and OXPFUI.Log then OXPFUI.Log("error", "options", tostring(err)) end

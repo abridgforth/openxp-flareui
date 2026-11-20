@@ -16,7 +16,8 @@ ADDON_DIR = REPO_ROOT / "src" / "OXP-FUI"
 LUA_DIR = pathlib.Path(__file__).resolve().parent / "lua"
 
 # TOC order; kept in sync with src/OXP-FUI/OXP-FUI.toc (build test enforces).
-ADDON_FILES = ["Core.lua", "Locale.lua", "Theme.lua", "Engine.lua",
+ADDON_FILES = ["Core.lua", "Settings.lua", "Locale.lua", "Theme.lua",
+               "FlareStyle.lua", "Engine.lua",
                "Docking.lua",
                "ArrowSkin.lua", "Card.lua", "SkinTargets.lua",
                "SkinTracker.lua", "SkinWindows.lua", "SkinTooltips.lua",
@@ -61,6 +62,7 @@ class Env:
                  flareui: bool = False, flareui_late: bool = False):
         self.lua = lupa.LuaRuntime(unpack_returned_tuples=True)
         self._eval_file(str(LUA_DIR / "wow_api.lua"))
+        self._eval_file(str(LUA_DIR / "fake_blizzard_ui.lua"))
         # Simulate the client reading our TOC metadata (Version/Title).
         meta = _read_toc_metadata(ADDON_DIR / "OXP-FUI.toc")
         self.run(f"HARNESS.addonMetadata[{_lua_literal('OXP-FUI')}] = "

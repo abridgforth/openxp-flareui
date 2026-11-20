@@ -315,6 +315,8 @@ function OXPFUI.Reapply(reason)
   if not state.ready then return end
   state.passes = state.passes + 1
   state.lastReason = reason or "?"
+  -- Re-read the FlareUI tracker style once per pass (theme reads the cache).
+  if OXPFUI.FlareStyle then pcall(OXPFUI.FlareStyle.Refresh) end
   for _, def in ipairs(skins) do
     ApplySkin(def, state.lastReason)
   end
@@ -435,6 +437,10 @@ function OXPFUI.DebugReport()
     lines[#lines + 1] = L.debugWindows:format(table.concat(parts, ", "))
   end
   lines[#lines + 1] = L.debugPasses:format(state.passes, state.lastReason)
+  if OXPFUI.FlareStyle then
+    local ok, text = pcall(OXPFUI.FlareStyle.Describe)
+    lines[#lines + 1] = L.debugFlareStyle:format(ok and text or ("error: " .. tostring(text)))
+  end
   if OXPFUI.Dock and OXPFUI.Dock.Status then
     lines[#lines + 1] = L.debugDocking:format(OXPFUI.Dock.Status())
   end

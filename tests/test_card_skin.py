@@ -529,9 +529,12 @@ class CardSwitches(unittest.TestCase):
         env.boot()
         env.slash("/oxpfui")
         env.run("OXPFUIPanel.opacitySlider:SetValue(0.2)")
+        env.run("OXPFUIPanel.saveBtn:Click()")
         self.assertEqual(env.run(
             "local _,_,_,a = OpenXPCard:GetBackdropColor(); return a"), 0.2)
-        env.run("OXPFUIPanel.borderBtn:Click()")  # Frames -> Thick
+        env.slash("/oxpfui")
+        env.run("HARNESS.PickDropdown(OXPFUIPanel.borderDropdown, 'Thick')")
+        env.run("OXPFUIPanel.saveBtn:Click()")
         self.assertEqual(env.run("return OpenXPCard.backdrop.edgeFile"), FLARE_THICK)
 
 
