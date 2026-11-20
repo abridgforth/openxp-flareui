@@ -40,7 +40,7 @@ end
 
 -- Re-tint a texture only while OpenXP still has it in the blue accent.
 local function amberIfBlue(tex, alpha)
-  if tex and matches(tex, theme.OXP_BLUE) then setVertex(tex, C.ZONE, alpha) end
+  if tex and matches(tex, theme.OXP_BLUE) then setVertex(tex, C.ACCENT, alpha) end
 end
 
 local function isFontString(fs)
@@ -107,13 +107,17 @@ local function skinHeader(header)
   theme.ApplyText(header.zone, "zone", "ZONE")
   theme.ApplyText(header.range, "counter", "DIM")
   theme.ApplyText(header.step, "counter", "TITLE")
-  setVertex(header.dot, C.ZONE)  -- the blue accent dot becomes amber
+  setVertex(header.dot, C.ACCENT)  -- the blue accent dot becomes amber
   -- header.stepBtn (the invisible hit area over "Step n / n" that opens the
   -- step list) is deliberately left as OpenXP draws it: no chrome.
 end
 
--- FlareUI's header band: a divider texture right under OpenXP's header.
--- Own texture, anchored to the header; the header itself never moves.
+-- FlareUI's header band. With section separators on (FlareUI's Blizzard
+-- or FlareUI frame style, or the OXP-FUI setting) Blizzard's tracker title
+-- strip sits behind the header, as on FlareUI's tracker, plus the bottom
+-- strip in the bordered FlareUI style. Otherwise a plain divider texture
+-- right under the header. All own textures on own band frames, anchored to
+-- the header; the header itself never moves.
 local function ensureDivider(cardFrame, header)
   local rf = theme.RealFrame(cardFrame)
   local hf = theme.RealFrame(header)
@@ -129,6 +133,28 @@ local function ensureDivider(cardFrame, header)
   t:ClearAllPoints()
   t:SetPoint("TOPLEFT", hf, "BOTTOMLEFT", 2, -1)
   t:SetPoint("TOPRIGHT", hf, "BOTTOMRIGHT", -2, -1)
+  if theme.ApplyTitleStrips(rf, hf) then t:Hide() else t:Show() end
+end
+
+-- A section's heading strip (history, "Up next"), shown with its section.
+-- OpenXP's own thin separator above the section steps aside while the strip
+-- is drawn, and comes back when it is not.
+local function sectionStrip(cardFrame, section, label, key, ownSep)
+  local rf = theme.RealFrame(cardFrame)
+  local host = theme.RealFrame(section)
+  local lf = theme.RealFrame(label)
+  if not (rf and host and lf and host.GetChildren) then return end
+  local drawn = theme.ApplyHeadingStrip(rf, lf, key, host)
+  local sep = theme.RealFrame(ownSep)
+  if sep and sep.SetAlpha then
+    if drawn then
+      if sep.oxpfuiAlpha == nil then sep.oxpfuiAlpha = sep.GetAlpha and sep:GetAlpha() or 1 end
+      sep:SetAlpha(0)
+    elseif sep.oxpfuiAlpha ~= nil then
+      sep:SetAlpha(sep.oxpfuiAlpha)
+      sep.oxpfuiAlpha = nil
+    end
+  end
 end
 
 local function skinHist(hist, openxp)
@@ -197,10 +223,10 @@ local function skinBar(bar)
     if btn then
       theme.ApplyText(btn.label, "body", "OBJECTIVE")
       if btn.bg and matches(btn.bg, theme.OXP_BLUE) then
-        setVertex(btn.bg, C.ZONE, 0.16)  -- labelled buttons' blue wash -> amber
+        setVertex(btn.bg, C.ACCENT, 0.16)  -- labelled buttons' blue wash -> amber
       end
       if btn.icon and matches(btn.icon, OXP_BLUE_LABEL) then
-        setVertex(btn.icon, C.ZONE)
+        setVertex(btn.icon, C.ACCENT)
       end
     end
   end
@@ -209,7 +235,7 @@ end
 local function skinXPStrip(xpStrip)
   -- rested XP is drawn in the blue accent: amber keeps the meaning
   if xpStrip and xpStrip.rested and matches(xpStrip.rested, theme.OXP_BLUE) then
-    setVertex(xpStrip.rested, C.ZONE, 0.35)
+    setVertex(xpStrip.rested, C.ACCENT, 0.35)
   end
 end
 
@@ -226,6 +252,8 @@ end
 local function skinStepList(list, openxp)
   theme.ApplyBackdrop(list)
   theme.ApplyText(list.title, "header", "TITLE")
+  local rl, rt = theme.RealFrame(list), theme.RealFrame(list.title)
+  if rl and rt and rl.GetChildren then theme.ApplyTitleStrips(rl, rt) end
   local rows = list.rows or {}
   for _, row in ipairs(rows) do
     local colorName = "TITLE"
@@ -426,9 +454,15 @@ local function Apply(ctx)
     ensureDivider(f, header)
     insetStepProgress(rf, header, ctx)
   end
-  if cardModule and cardModule.hist then skinHist(ctx.Guard(cardModule.hist), openxp) end
+  if cardModule and cardModule.hist then
+    skinHist(ctx.Guard(cardModule.hist), openxp)
+    sectionStrip(f, cardModule.hist, cardModule.hist.label, "history")
+  end
   if cardModule then skinBlocks(cardModule.blocksForTest) end
-  if upNext then skinUpNext(ctx.Guard(upNext)) end
+  if upNext then
+    skinUpNext(ctx.Guard(upNext))
+    sectionStrip(f, upNext, upNext.label, "upnext", upNext.sep)
+  end
   if bar then skinBar(ctx.Guard(bar)) end
   if cardModule and cardModule.xpStrip then
     skinXPStrip(cardModule.xpStrip)

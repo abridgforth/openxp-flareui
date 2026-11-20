@@ -61,13 +61,32 @@ tooltip also says when it needs a reload. Currently:
 
 ## Follow FlareUI tracker style
 
-On by default. With FlareUI installed, the skins take the **opacity** and
-**border** saved in FlareUI's Quest Tracker settings (`FlareUI2_DB`, for the
-profile your character uses), and the **font** the tracker is drawn with.
-A FlareUI border of "None" draws no border. Anything OXP-FUI cannot read
-from FlareUI falls back to its own Appearance settings. FlareUI's saved
-settings are only read, never written. The style is re-read on every apply
-pass (an OpenXP refresh, a save, or `/reload`).
+On by default. With FlareUI installed, OpenXP's windows take the look of
+your FlareUI Quest Tracker, read from its saved settings (`FlareUI2_DB`, for
+the profile your character uses) with the same rules FlareUI applies:
+
+| FlareUI Frame Style | Background | Border | Separators | Colours |
+|---|---|---|---|---|
+| Blizzard | none | none | header and section strips | Blizzard's (gold headings and titles) |
+| FlareUI | your opacity | FlareUI Thick | strips, plus the bottom strip | FlareUI's bronze scheme |
+| Custom | your opacity | your border (or None) | none | FlareUI's scheme, or Blizzard's if chosen |
+
+Text sizes follow the tracker's header, title and objective fonts, and the
+font face is read from the tracker on screen. Settings FlareUI never saved
+use FlareUI's own defaults. Bronze chrome (dots, the arrow, button washes)
+stays bronze in every scheme. FlareUI's saved settings are only read, never
+written. The style is re-read on every apply pass (an OpenXP refresh, a
+save, or `/reload`).
+
+## Section separators
+
+Like FlareUI's tracker, the guide card draws Blizzard's own quest tracker
+strips as separators: the title strip behind the card header and a heading
+strip behind the "Up next" and history sections (OpenXP's own thin
+separator steps aside meanwhile), plus the bottom strip on bordered
+FlareUI-style frames. The step list's title gets the title strip too. When
+following FlareUI, its frame style decides; otherwise the **Section
+separators** check box does.
 
 ## Timer bars
 
@@ -160,6 +179,8 @@ draft and add its tooltip, including the reload note.
 - OXP-FUI code: MIT (see `LICENSE`).
 - The bundled border art and fonts come from **FlareUI by Malkkav** (MIT) and
   their font licenses; see `src/OXP-FUI/LICENSE` and `src/OXP-FUI/Licenses-ThirdParty/`.
-  The FlareUI look is re-implemented in new code; no FlareUI code is copied.
+  The FlareUI look is re-implemented in new code. The tracker colour
+  schemes, frame-style rules and strip measurements follow FlareUI's
+  `ObjectiveTracker.lua` (MIT, credited in `Licenses-ThirdParty/FlareUI-LICENSE.txt`).
 - OpenXP (CC BY-NC-SA 4.0) is a runtime dependency, unmodified and
   unredistributed; no OpenXP code is included here.

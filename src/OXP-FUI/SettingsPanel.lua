@@ -25,7 +25,7 @@ local Settings = OXPFUI.Settings
 
 local panel -- built lazily on first open
 
-local WIDTH, HEIGHT = 460, 640
+local WIDTH, HEIGHT = 460, 672
 local LEFT = 20
 local COL2 = 230
 -- Sliders leave room on the right for their value label ("100%", "40px")
@@ -284,9 +284,11 @@ local function buildPanel()
   y = y - 32
   f.opacitySlider = makeSlider(f, "opacity", L.opacityLabel, L.opacityTip, y,
     function(v) return L.opacityValue:format(math.floor(v * 100 + 0.5)) end)
+  y = y - 30
+  f.separatorsBtn = makeCheckbox(f, "separators", L.separatorsLabel, L.separatorsTip, LEFT, y)
 
   -- FlareUI Quest Tracker ----------------------------------------------------
-  y = y - 40
+  y = y - 36
   f.trackerHeader = header(f.content, L.trackerHeader, y)
   y = y - 22
   f.attachBtn = makeCheckbox(f, "attachTracker", L.attachLabel, L.attachTip, LEFT, y)
@@ -358,7 +360,7 @@ local function buildPanel()
 
     local flareAvailable = OXPFUI.FlareStyle and OXPFUI.FlareStyle.Available()
     local following = self.draft.followFlareUI == true and flareAvailable
-    for _, key in ipairs({ "font", "borderStyle", "opacity" }) do
+    for _, key in ipairs({ "font", "borderStyle", "opacity", "separators" }) do
       local control = self.controls[key]
       if control then setEnabled(control.widget, not following) end
     end

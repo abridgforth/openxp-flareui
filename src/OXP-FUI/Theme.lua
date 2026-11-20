@@ -25,7 +25,67 @@ theme.C = {
   FILL = { 0.10, 0.08, 0.06 },      -- warm near-black: solid form of the
                                      -- tracker fill's lighter top colour,
                                      -- used where a plain texture is tinted
+  ACCENT = { 0.80, 0.60, 0.34 },    -- #CC9957 bronze for tinted chrome (dots,
+                                     -- washes, arrow); never follows a scheme
 }
+
+-- Colour schemes (FlareUI ObjectiveTracker.lua OT.ApplyColorScheme, MIT):
+-- with "Follow FlareUI tracker style" on, the text colours follow the
+-- tracker's scheme. The C tables change in place, so every holder of one
+-- (skins keep `local C = theme.C`) follows. nil = OXP-FUI's own palette.
+local SCHEME_KEYS = { "ZONE", "TITLE", "TITLE_DONE", "TITLE_FOCUS", "OBJECTIVE",
+                      "OBJECTIVE_DONE", "DIM", "URGENT" }
+theme.BASE = {}
+for _, k in ipairs(SCHEME_KEYS) do theme.BASE[k] = { theme.C[k][1], theme.C[k][2], theme.C[k][3] } end
+
+-- Blizzard's tracker colours, as FlareUI's C table holds them.
+local BLIZZARD = {
+  ZONE = { 1, 0.82, 0 }, TITLE = { 1, 0.82, 0 }, TITLE_DONE = { 0.13, 1, 0.13 },
+  TITLE_FOCUS = { 0.40, 0.80, 1 }, OBJECTIVE = { 0.85, 0.85, 0.85 },
+  OBJECTIVE_DONE = { 0.55, 0.55, 0.55 }, DIM = { 0.55, 0.55, 0.55 }, URGENT = { 1, 0.25, 0.25 },
+}
+-- FlareUI's scheme: zone headings in palette bronze5, titles in bronze4,
+-- every other colour in FlareUI's softer tone of Blizzard's (ns.SoftColor:
+-- 35% less saturated, a quarter of the way to a warm light bronze).
+local FLARE_BRONZE = { ZONE = { 0.85, 0.68, 0.47 }, TITLE = { 0.80, 0.60, 0.34 } }
+function theme.SoftColor(r, g, b)
+  local avg = (r + g + b) / 3
+  r, g, b = r + (avg - r) * 0.35, g + (avg - g) * 0.35, b + (avg - b) * 0.35
+  return r * 0.75 + 0.85 * 0.25, g * 0.75 + 0.70 * 0.25, b * 0.75 + 0.50 * 0.25
+end
+
+-- Every colour a palette key can take (OXP-FUI, Blizzard, FlareUI).
+function theme.Variants(key)
+  local out = { theme.BASE[key], BLIZZARD[key] }
+  if FLARE_BRONZE[key] then out[#out + 1] = FLARE_BRONZE[key]
+  elseif BLIZZARD[key] then
+    local r, g, b = theme.SoftColor(BLIZZARD[key][1], BLIZZARD[key][2], BLIZZARD[key][3])
+    out[#out + 1] = { r, g, b }
+  end
+  return out
+end
+
+theme.scheme = nil
+function theme.SetScheme(scheme)
+  if scheme ~= "blizzard" and scheme ~= "flareui" then scheme = nil end
+  if scheme == theme.scheme then return false end
+  theme.scheme = scheme
+  for _, k in ipairs(SCHEME_KEYS) do
+    local c = theme.C[k]
+    local r, g, b
+    if scheme == "blizzard" then
+      r, g, b = BLIZZARD[k][1], BLIZZARD[k][2], BLIZZARD[k][3]
+    elseif scheme == "flareui" then
+      local bronze = FLARE_BRONZE[k]
+      if bronze then r, g, b = bronze[1], bronze[2], bronze[3]
+      else r, g, b = theme.SoftColor(BLIZZARD[k][1], BLIZZARD[k][2], BLIZZARD[k][3]) end
+    else
+      r, g, b = theme.BASE[k][1], theme.BASE[k][2], theme.BASE[k][3]
+    end
+    c[1], c[2], c[3] = r, g, b
+  end
+  return true
+end
 
 -- OpenXP's own blue accent (90/255, 184/255, 1 — its COLORS tables and the
 -- card art it tints), retinted to FlareUI amber/bronze by the card and the
@@ -157,8 +217,9 @@ end
 -- kind, no outline, 1px black shadow at (+1, -1).
 function theme.ApplyFontString(fs, kind)
   local db = OXPFUI.db or {}
-  local size = theme.FONT_SIZES[kind] or theme.FONT_SIZES.body
   local f = flare()
+  local sizes = (f and f.sizes) or theme.FONT_SIZES
+  local size = sizes[kind] or sizes.body or theme.FONT_SIZES.body
   fs:SetFont((f and f.fontPath) or theme.FontPath(db.font), size, "")
   fs:SetShadowColor(0, 0, 0, 1)
   fs:SetShadowOffset(1, -1)
@@ -298,6 +359,188 @@ function theme.ApplyInsetBackdrop(frame)
   local c = theme.C.BOX
   frame:SetBackdropBorderColor(c[1], c[2], c[3], 1)
   return frame
+end
+
+
+-- ---------------------------------------------------------------------------
+-- Section separators: Blizzard's own quest tracker strips, the way FlareUI's
+-- tracker draws them in its Blizzard and FlareUI frame styles (same atlases,
+-- same measurements: FlareUI ObjectiveTracker.lua "HEADER ART", MIT). Each
+-- strip is cut in three so any width keeps the ends at their own size: both
+-- ends at 30% of the art's width, a thin slice of the plain middle stretched
+-- between them. Sizes come from the game (C_Texture.GetAtlasInfo); with no
+-- atlas info the strip is simply not drawn.
+-- ---------------------------------------------------------------------------
+
+theme.ART = {
+  TITLE = "ui-questtracker-primary-objective-header",   -- window headers
+  HEADING = "UI-QuestTracker-Secondary-Objective-Header", -- section headings
+  FRAME = 260,        -- Blizzard's header width; strips reach past it
+  TEXT = 7,           -- Blizzard's text inset on its headers
+  CAP = 0.3,          -- each end of a strip, as a share of its width
+  TITLE_RIGHT = 8,    -- the title art sits off centre: right end further out
+  TITLE_LEFT = 1,     -- and one pixel left, centred on the border
+  TITLE_DOWN = 0.5,   -- with a border: the knobs onto the border's curve
+  KNOB_IN = 2,        -- title knobs sit half outside the frame edge
+  HEADING_IN = 5,     -- heading strips stay this far inside the frame
+  FOOT_BAND = { 31 / 40, 38 / 40 }, -- the title art's bottom line + knobs
+  FOOT_Y = 2.5,       -- that line's middle above the frame's bottom edge
+  HEADER_INSET = 8,   -- header band from the frame edges
+  PAD = 14,           -- text from the frame edges
+}
+
+local artInfo = {}
+function theme.ArtInfo(atlas)
+  local info = artInfo[atlas]
+  if info == nil then
+    local ok, found = false, nil
+    if C_Texture and C_Texture.GetAtlasInfo then
+      ok, found = pcall(C_Texture.GetAtlasInfo, atlas)
+    end
+    info = ok and type(found) == "table" and found.file and (found.width or 0) > 0 and found or false
+    artInfo[atlas] = info
+  end
+  return info or nil
+end
+
+function theme.ArtReach(atlas)
+  local info = theme.ArtInfo(atlas)
+  return info and math.max(0, (info.width - theme.ART.FRAME) / 2) or 0
+end
+
+-- Are separators drawn? Following FlareUI: its frame style decides (Blizzard
+-- and FlareUI yes, Custom no). Otherwise the "Section separators" setting.
+function theme.StripsOn()
+  local f = flare()
+  if f and f.strips ~= nil then return f.strips end
+  local db = OXPFUI.db or {}
+  return db.separators ~= false
+end
+
+-- The bottom strip with its knobs sits on a border: FlareUI style only.
+function theme.FootOn()
+  local f = flare()
+  return f ~= nil and f.foot == true
+end
+
+-- An OXP-FUI-owned band frame on `parent` (created once per key). Strips are
+-- drawn on it, never on OpenXP's own frames. It sits at the parent's frame
+-- level, under the parent's child frames and their text.
+function theme.Band(parent, key)
+  parent.oxpfuiBands = parent.oxpfuiBands or {}
+  local band = parent.oxpfuiBands[key]
+  if not band then
+    band = CreateFrame("Frame", nil, parent)
+    if band.SetFrameLevel and parent.GetFrameLevel then
+      band:SetFrameLevel(parent:GetFrameLevel() or 0)
+    end
+    if band.EnableMouse then band:EnableMouse(false) end
+    parent.oxpfuiBands[key] = band
+  end
+  return band
+end
+
+function theme.HideStrip(band)
+  local s = band and band.oxpfuiStrip
+  if s then s.L:Hide(); s.M:Hide(); s.R:Hide() end
+end
+
+-- Draw `atlas` across band, centred on its height: leftOut / rightOut past
+-- its edges; band (optional) = the part of the art's height to draw; dy
+-- moves it up (+) or down (-).
+function theme.PlaceStrip(band, atlas, leftOut, rightOut, cut, dy)
+  local info = theme.ArtInfo(atlas)
+  if not info then theme.HideStrip(band) return false end
+  local s = band.oxpfuiStrip
+  if not s then
+    s = {}
+    for _, part in ipairs({ "L", "M", "R" }) do
+      local tex = band:CreateTexture(nil, "BACKGROUND", nil, -1)
+      if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end
+      if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
+      s[part] = tex
+    end
+    band.oxpfuiStrip = s
+  end
+  local l, r = info.leftTexCoord or 0, info.rightTexCoord or 1
+  local top, bottom = info.topTexCoord or 0, info.bottomTexCoord or 1
+  local height = info.height
+  if cut then
+    local tall = bottom - top
+    top, bottom = top + tall * cut[1], top + tall * cut[2]
+    height = info.height * (cut[2] - cut[1])
+  end
+  local span = r - l
+  local cap = math.floor(info.width * theme.ART.CAP + 0.5)
+  local capSpan = span * cap / info.width
+  local mid = l + span / 2
+  for _, tex in pairs(s) do
+    tex:SetTexture(info.file)
+    tex:ClearAllPoints()
+    tex:SetHeight(height)
+    tex:Show()
+  end
+  s.L:SetTexCoord(l, l + capSpan, top, bottom)
+  s.L:SetWidth(cap)
+  s.L:SetPoint("LEFT", band, "LEFT", -leftOut, dy or 0)
+  s.R:SetTexCoord(r - capSpan, r, top, bottom)
+  s.R:SetWidth(cap)
+  s.R:SetPoint("RIGHT", band, "RIGHT", rightOut, dy or 0)
+  s.M:SetTexCoord(mid - span * 0.005, mid + span * 0.005, top, bottom)
+  s.M:SetPoint("LEFT", s.L, "RIGHT")
+  s.M:SetPoint("RIGHT", s.R, "LEFT")
+  return true
+end
+
+-- A window's title strip behind `header` (any region or frame with a top
+-- and bottom), spanning `frame` like FlareUI's tracker header, plus the
+-- bottom strip along the frame's foot in the FlareUI style. Returns whether
+-- the title strip is drawn.
+function theme.ApplyTitleStrips(frame, header)
+  local A = theme.ART
+  local band = theme.Band(frame, "title")
+  local foot = theme.Band(frame, "foot")
+  if not (header and theme.StripsOn()) then
+    theme.HideStrip(band); theme.HideStrip(foot)
+    return false
+  end
+  band:ClearAllPoints()
+  band:SetPoint("TOP", header, "TOP")
+  band:SetPoint("BOTTOM", header, "BOTTOM")
+  band:SetPoint("LEFT", frame, "LEFT", A.HEADER_INSET, 0)
+  band:SetPoint("RIGHT", frame, "RIGHT", -A.HEADER_INSET, 0)
+  local reach = theme.ArtReach(A.TITLE)
+  local leftOut = reach - A.KNOB_IN + A.TITLE_LEFT
+  local rightOut = reach + A.TITLE_RIGHT - A.KNOB_IN - A.TITLE_LEFT
+  local bordered = theme.BorderKey(OXPFUI.db or {}) ~= "None"
+  local drawn = theme.PlaceStrip(band, A.TITLE, leftOut, rightOut, nil, bordered and A.TITLE_DOWN or nil)
+  if drawn and theme.FootOn() then
+    foot:ClearAllPoints()
+    foot:SetHeight(1)
+    foot:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", A.HEADER_INSET, A.FOOT_Y - 0.5)
+    foot:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -A.HEADER_INSET, A.FOOT_Y - 0.5)
+    theme.PlaceStrip(foot, A.TITLE, leftOut, rightOut, A.FOOT_BAND)
+  else
+    theme.HideStrip(foot)
+  end
+  return drawn
+end
+
+-- A section heading's strip behind `label` (a font string or frame),
+-- across `frame` inside its text padding, like FlareUI's zone headings.
+-- host (default frame): the frame the band belongs to, so the strip shows
+-- and hides with that section.
+function theme.ApplyHeadingStrip(frame, label, key, host)
+  local A = theme.ART
+  local band = theme.Band(host or frame, key or "heading")
+  if not (label and theme.StripsOn()) then theme.HideStrip(band) return false end
+  band:ClearAllPoints()
+  band:SetPoint("TOP", label, "TOP")
+  band:SetPoint("BOTTOM", label, "BOTTOM")
+  band:SetPoint("LEFT", frame, "LEFT", A.PAD, 0)
+  band:SetPoint("RIGHT", frame, "RIGHT", -A.PAD, 0)
+  local reach = theme.ArtReach(A.HEADING) + A.TEXT - A.HEADING_IN
+  return theme.PlaceStrip(band, A.HEADING, reach, reach)
 end
 
 OXPFUI.theme = theme

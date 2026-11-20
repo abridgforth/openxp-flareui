@@ -225,3 +225,14 @@ Settings = {
   RegisterAddOnCategory = function(c) c.registered = true end,
 }
 function HideUIPanel(f) if f and f.Hide then f:Hide() end end
+
+-- Atlas info for the quest tracker strips (sizes are test values; the real
+-- ones come from the game).
+HARNESS.atlases = {
+  ["ui-questtracker-primary-objective-header"] = { file = "Interface\\QuestFrame\\ObjectiveTracker",
+    width = 300, height = 40, leftTexCoord = 0, rightTexCoord = 0.5, topTexCoord = 0, bottomTexCoord = 0.25 },
+  ["UI-QuestTracker-Secondary-Objective-Header"] = { file = "Interface\\QuestFrame\\ObjectiveTracker",
+    width = 280, height = 24, leftTexCoord = 0, rightTexCoord = 0.5, topTexCoord = 0.25, bottomTexCoord = 0.4 },
+}
+C_Texture = C_Texture or {}
+C_Texture.GetAtlasInfo = function(atlas) return HARNESS.atlases[atlas] end

@@ -60,6 +60,12 @@ local PALETTE_MAP = {
   { from = theme.C.OBJECTIVE, to = "OBJECTIVE" },
   { from = theme.C.DIM, to = "DIM" },
 }
+-- Strings already styled under another colour scheme map back too.
+for _, key in ipairs({ "ZONE", "OBJECTIVE", "DIM" }) do
+  for _, triple in ipairs(theme.Variants(key)) do
+    PALETTE_MAP[#PALETTE_MAP + 1] = { from = triple, to = key }
+  end
+end
 
 -- Recolour a font string by the OpenXP colour it currently wears; anything
 -- unknown lands on FlareUI body grey.
@@ -80,7 +86,7 @@ local function RetintAccentTexture(tex)
   local r, g, b, a = tex:GetVertexColor()
   if not r then return end
   if theme.NearColor(r, g, b, theme.OXP_BLUE) then
-    local c = theme.C.ZONE
+    local c = theme.C.ACCENT
     tex:SetVertexColor(c[1], c[2], c[3], a)
   end
 end

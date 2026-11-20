@@ -30,7 +30,7 @@ local theme = OXPFUI.theme
 -- cogwheel icon): tinted to the bronze accent.
 local function tintBronze(tex)
   if type(tex) == "table" and tex.SetVertexColor then
-    local c = theme.C.ZONE
+    local c = theme.C.ACCENT
     tex:SetVertexColor(c[1], c[2], c[3], 1)
   end
 end

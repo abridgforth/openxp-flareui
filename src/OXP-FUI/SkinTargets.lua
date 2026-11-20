@@ -33,7 +33,7 @@ local function StyleRow(ctx, raw)
   local btn = ctx.Guard(raw)
   if not btn then return end
   if type(btn.bar) == "table" and btn.bar.SetColorTexture then
-    local c = theme.C.ZONE -- bronze accent, like every FlareUI strip
+    local c = theme.C.ACCENT -- bronze accent, like every FlareUI strip
     btn.bar:SetColorTexture(c[1], c[2], c[3], 1)
   end
   theme.ApplyText(btn.label, "body", "OBJECTIVE")

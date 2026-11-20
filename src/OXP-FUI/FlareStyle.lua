@@ -1,12 +1,22 @@
 -- OXP-FUI · FlareStyle: follow the FlareUI Quest Tracker's own look.
 --
 -- With the "Follow FlareUI tracker style" switch on (db.followFlareUI) and
--- FlareUI loaded, the theme takes these from FlareUI instead of the
--- OXP-FUI Font / Border / Opacity settings:
+-- FlareUI loaded, the theme takes the tracker's look from FlareUI's saved
+-- settings (FlareUI2_DB.profiles[<profile>].objectivetracker), applying the
+-- same rules FlareUI's ObjectiveTracker.lua does (MIT, Malkkav):
 --
---   opacity  FlareUI2_DB.profiles[<profile>].objectivetracker.opacity
---   border   ...objectivetracker.borderTexture  ("None", or a border name)
---   font     the font the live tracker (FlareUI_ObjectiveTracker) draws with
+--   frameStyle  "blizzard": no background, no border, header strips,
+--                           Blizzard's colours
+--               "flareui":  the Thick border at the chosen opacity, header
+--                           strips plus the bottom strip, FlareUI colours
+--               "custom":   the chosen border and opacity, no strips,
+--                           FlareUI colours (unless colorScheme says so)
+--   colorScheme "blizzard" | "flareui" (Blizzard style is always blizzard)
+--   fonts       headerFont / titleFont / objectiveFont sizes; the face is
+--               read from the live tracker (FlareUI_ObjectiveTracker)
+--
+-- FlareUI saves only values that differ from its defaults, so a missing key
+-- means FlareUI's default (FLARE_DEFAULTS below, from its Core.lua).
 --
 -- Read-only: nothing here writes FlareUI's saved variables or frames.
 -- Every read is defensive — a FlareUI update that renames a key just means
@@ -123,25 +133,80 @@ function FlareStyle.Active()
   return db ~= nil and db.followFlareUI == true and FlareStyle.Available()
 end
 
+-- FlareUI's defaults for the keys read here (Core.lua, objectivetracker).
+FlareStyle.DEFAULTS = {
+  frameStyle = "custom",
+  opacity = 0.75,
+  borderTexture = "FlareUI Frames",
+  headerFont = 12, titleFont = 11, objectiveFont = 10,
+}
+
+local function fontSize(ot, key)
+  local f = ot[key]
+  if type(f) == "table" and type(f.size) == "number" and f.size > 0 then return f.size end
+  return FlareStyle.DEFAULTS[key]
+end
+
+-- Build.FrameStyle: blizzard and custom as saved, anything else is flareui.
+function FlareStyle.FrameStyle(ot)
+  local s = ot.frameStyle
+  if s == nil then s = FlareStyle.DEFAULTS.frameStyle end
+  if s == "blizzard" or s == "custom" then return s end
+  return "flareui"
+end
+
 -- Recompute what FlareUI says; nil fields mean "use the OXP-FUI setting".
 function FlareStyle.Refresh()
   if not FlareStyle.Active() then
     FlareStyle.current = nil
+    if OXPFUI.theme and OXPFUI.theme.SetScheme then OXPFUI.theme.SetScheme(nil) end
     return nil
   end
   local style = {}
   local ot = FlareStyle.TrackerSettings()
   if ot then
-    if type(ot.opacity) == "number" then
-      style.opacity = math.max(0, math.min(1, ot.opacity))
+    local frame = FlareStyle.FrameStyle(ot)
+    style.frameStyle = frame
+    -- Background (ApplyBackdrop): none in the Blizzard style.
+    if frame == "blizzard" then
+      style.opacity = 0
+    else
+      local o = ot.opacity
+      if type(o) ~= "number" then o = FlareStyle.DEFAULTS.opacity end
+      style.opacity = math.max(0, math.min(1, o))
     end
-    style.border = FlareStyle.MapBorder(ot.borderTexture)
-    style.borderName = ot.borderTexture
+    -- Border (GetBorderFile): none / Thick / the chosen one.
+    if frame == "blizzard" then
+      style.border, style.borderName = "None", "None"
+    elseif frame == "flareui" then
+      style.border, style.borderName = "Thick", "FlareUI Thick"
+    else
+      local name = ot.borderTexture or FlareStyle.DEFAULTS.borderTexture
+      style.borderName = name
+      style.border = FlareStyle.MapBorder(name)
+    end
+    -- Colours (OT.ColorScheme).
+    if frame == "blizzard" then
+      style.scheme = "blizzard"
+    else
+      style.scheme = ot.colorScheme == "blizzard" and "blizzard" or "flareui"
+    end
+    -- Header art (Build.HeaderArtOn) and the bottom strip (FlareUI style).
+    style.strips = frame ~= "custom"
+    style.foot = frame == "flareui"
+    style.sizes = {
+      header = fontSize(ot, "headerFont"),
+      zone = fontSize(ot, "headerFont"),
+      title = fontSize(ot, "titleFont"),
+      body = fontSize(ot, "objectiveFont"),
+      counter = fontSize(ot, "objectiveFont"),
+    }
     style.width = type(ot.width) == "number" and ot.width or nil
   end
   local ok, path = pcall(FlareStyle.TrackerFont)
   if ok and path then style.fontPath = path end
   FlareStyle.current = style
+  if OXPFUI.theme and OXPFUI.theme.SetScheme then OXPFUI.theme.SetScheme(style.scheme) end
   return style
 end
 
@@ -153,7 +218,10 @@ function FlareStyle.Describe()
   if not FlareStyle.Available() then return L.flareStyleMissing end
   local s = FlareStyle.Refresh() or {}
   return L.flareStyleOn:format(
+    s.frameStyle or L.flareStyleOwn,
     s.opacity and (math.floor(s.opacity * 100 + 0.5) .. "%") or L.flareStyleOwn,
     s.border or (s.borderName and (tostring(s.borderName) .. "?")) or L.flareStyleOwn,
+    s.scheme or L.flareStyleOwn,
+    s.strips == nil and L.flareStyleOwn or (s.strips and "on" or "off"),
     s.fontPath or L.flareStyleOwn)
 end

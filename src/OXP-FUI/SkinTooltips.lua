@@ -51,19 +51,23 @@ end
 
 local HEADER_CODE = "|cFFFF8C1A" -- OpenXP's ORANGE: the section header lines
 
-local RECOLOR = {
-  ["|cFFFF8C1A"] = Hex(theme.C.ZONE),        -- section header -> zone bronze
-  ["|cFFFFC107"] = Hex(theme.C.TITLE),       -- name / quest title -> gold
-  ["|cFF66BB6A"] = Hex(theme.C.TITLE_DONE),  -- done progress / badge -> green
-  ["|cFFFFFFFF"] = Hex(theme.C.OBJECTIVE),   -- progress counters -> light grey
-  ["|cFF9E9E9E"] = Hex(theme.C.DIM),         -- sub-lines / suffixes -> dim grey
-}
+-- Built from the live palette, so the colour scheme in use is followed.
+local function RecolorMap()
+  return {
+    ["|cFFFF8C1A"] = Hex(theme.C.ZONE),        -- section header -> zone colour
+    ["|cFFFFC107"] = Hex(theme.C.TITLE),       -- name / quest title -> title colour
+    ["|cFF66BB6A"] = Hex(theme.C.TITLE_DONE),  -- done progress / badge -> green
+    ["|cFFFFFFFF"] = Hex(theme.C.OBJECTIVE),   -- progress counters -> light grey
+    ["|cFF9E9E9E"] = Hex(theme.C.DIM),         -- sub-lines / suffixes -> dim grey
+  }
+end
 
 -- Rewrite OpenXP's inline colour codes in a line's text; every other escape
 -- (icons |T..|t, |r, other addons' colours) passes through untouched.
 local function Recolor(text)
+  local map = RecolorMap()
   return (text:gsub("|c%x%x%x%x%x%x%x%x", function(code)
-    return RECOLOR[code] or code
+    return map[code] or code
   end))
 end
 

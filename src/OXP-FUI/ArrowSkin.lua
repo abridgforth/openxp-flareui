@@ -45,7 +45,7 @@ local function ReassertTick(af)
   local arrived = IsArrived(af)
   local ring = af.dialRing
   if ring then
-    local c = arrived and C.TITLE_DONE or C.ZONE
+    local c = arrived and C.TITLE_DONE or C.ACCENT
     local a = arrived and 1 or 0.6
     ring:SetVertexColor(c[1], c[2], c[3], a)
   end
@@ -77,7 +77,7 @@ local function Paint(af)
   if pointer then
     -- The pointer art contains a blue part: desaturate, then tint amber.
     pointer:SetDesaturated(true)
-    pointer:SetVertexColor(C.ZONE[1], C.ZONE[2], C.ZONE[3], 1)
+    pointer:SetVertexColor(C.ACCENT[1], C.ACCENT[2], C.ACCENT[3], 1)
   end
 
   -- Story 9: distance and label in the chosen FlareUI font with the 1px

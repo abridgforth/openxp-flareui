@@ -113,6 +113,9 @@ Settings.Define { key = "font", kind = "choice", default = "Friz Quadrata", relo
 Settings.Define { key = "opacity", kind = "range", default = 0.6, min = 0, max = 1, step = 0.05, reload = false }
 Settings.Define { key = "borderStyle", kind = "choice", default = "Frames",
                   choices = { "Frames", "Thick", "Thin", "None" }, reload = false }
+-- Blizzard's tracker strips between sections (when not following FlareUI,
+-- whose frame style decides instead).
+Settings.Define { key = "separators", kind = "toggle", default = true, reload = false }
 
 -- Per-window switches. Switching a skin ON applies it on the next pass;
 -- switching it OFF stops future passes but cannot restore OpenXP's own look
