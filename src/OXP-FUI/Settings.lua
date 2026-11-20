@@ -5,9 +5,12 @@
 -- reads the registry instead of hard-coding keys:
 --
 --   * Core.InitDB fills missing keys from Settings.Defaults();
---   * the /oxpfui panel edits a draft (Settings.NewDraft) and Save calls
---     Settings.Commit, which writes the db, re-applies the live settings and
---     reloads the UI if — and only if — a changed setting requires it.
+--   * the /oxpfui panel edits a draft (Settings.NewDraft). Every change
+--     that needs no reload is shown at once (Settings.Preview) on a copy
+--     of the saved settings; Cancel drops the copy (Settings.EndPreview).
+--   * Save calls Settings.Commit, which writes the saved settings,
+--     re-applies them and reloads the UI if — and only if — a changed
+--     setting requires it.
 --
 -- Adding a setting (engineers): add one Define{} entry below. `reload` is
 -- REQUIRED and must be either
@@ -150,7 +153,7 @@ end
 
 -- A flat key -> value copy of the saved settings for the panel to edit.
 function Settings.NewDraft(db)
-  db = db or OXPFUI.db or {}
+  db = db or Settings.Saved()
   local draft = {}
   for _, def in ipairs(defs) do
     local v = Settings.Read(db, def.key)
@@ -169,7 +172,7 @@ end
 
 -- What a draft would change: list of { def, old, new, reload }.
 function Settings.Changes(draft, db)
-  db = db or OXPFUI.db or {}
+  db = db or Settings.Saved()
   local out = {}
   for _, def in ipairs(defs) do
     local new = draft[def.key]
@@ -196,21 +199,73 @@ function Settings.Reload()
   if ReloadUI then ReloadUI() end
 end
 
--- Write the draft into the db; re-apply the live settings; reload the UI if
+-- Re-run the skins and the dock with whatever OXPFUI.db now holds.
+function Settings.ApplyLive(reason)
+  if OXPFUI.Reapply then OXPFUI.Reapply(reason) end
+  -- Reapply already updates the dock when the engine is ready; this covers
+  -- the dock before login or with OpenXP missing.
+  if OXPFUI.Dock and OXPFUI.Dock.Update then OXPFUI.Dock.Update(reason) end
+end
+
+-- -------------------------------------------------------------------------
+-- Live preview: unsaved changes that need no reload, shown at once.
+-- -------------------------------------------------------------------------
+
+local function deepCopy(v)
+  if type(v) ~= "table" then return v end
+  local out = {}
+  for k, x in pairs(v) do out[k] = deepCopy(x) end
+  return out
+end
+
+-- The SavedVariables table (OXPFUI.db is a preview copy while previewing).
+function Settings.Saved()
+  return OXPFUI.savedDb or OXPFUI.db or {}
+end
+
+function Settings.IsPreviewing()
+  return OXPFUI.savedDb ~= nil and OXPFUI.db ~= OXPFUI.savedDb
+end
+
+-- Show every draft change that needs no reload, without saving anything:
+-- the skins read a copy of the saved settings with those changes applied.
+-- Changes that need a reload wait for Save.
+function Settings.Preview(draft)
+  local saved = Settings.Saved()
+  local view = deepCopy(saved)
+  for _, def in ipairs(defs) do
+    local new = draft[def.key]
+    local old = Settings.Read(saved, def.key)
+    if old == nil then old = def.default end
+    if new ~= nil and new ~= old and not Settings.NeedsReload(def, old, new) then
+      Settings.Write(view, def.key, new)
+    end
+  end
+  OXPFUI.db = view
+  Settings.ApplyLive("settings preview")
+end
+
+-- Drop the preview and show the saved settings again (Cancel / close).
+function Settings.EndPreview()
+  if not Settings.IsPreviewing() then return false end
+  OXPFUI.db = OXPFUI.savedDb
+  Settings.ApplyLive("settings preview cancelled")
+  return true
+end
+
+-- Write the draft into the saved settings; re-apply them; reload the UI if
 -- and only if a changed setting requires it. Returns changes, reloaded.
 function Settings.Commit(draft, db)
-  db = db or OXPFUI.db
+  db = db or Settings.Saved()
+  local wasPreviewing = Settings.IsPreviewing()
+  if OXPFUI.savedDb then OXPFUI.db = OXPFUI.savedDb end
   local changes = Settings.Changes(draft, db)
-  if #changes == 0 then return changes, false end
   for _, c in ipairs(changes) do Settings.Write(db, c.def.key, c.new) end
 
   if Settings.ChangesNeedReload(changes) then
     Settings.Reload()
     return changes, true
   end
-  if OXPFUI.Reapply then OXPFUI.Reapply("settings saved") end
-  -- Reapply already updates the dock when the engine is ready; this covers
-  -- the dock before login or with OpenXP missing.
-  if OXPFUI.Dock and OXPFUI.Dock.Update then OXPFUI.Dock.Update("settings saved") end
+  if #changes > 0 or wasPreviewing then Settings.ApplyLive("settings saved") end
   return changes, false
 end

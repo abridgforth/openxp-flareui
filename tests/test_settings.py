@@ -176,6 +176,75 @@ class AutoReload(unittest.TestCase):
         self.assertEqual(env.run("return HARNESS.reloads"), 1)
 
 
+class LivePreview(unittest.TestCase):
+    """Changes that need no reload show while the user adjusts them."""
+
+    CARD_ALPHA = "local _,_,_,a = OpenXPCard:GetBackdropColor(); return a"
+
+    def test_slider_changes_show_immediately_without_saving(self):
+        env = open_panel()
+        env.run("OXPFUIPanel.opacitySlider:SetValue(0.25)")
+        self.assertEqual(env.run(self.CARD_ALPHA), 0.25)
+        env.run("HARNESS.PickDropdown(OXPFUIPanel.borderDropdown, 'Thick')")
+        self.assertEqual(env.run("return OpenXPCard.backdrop.edgeFile"), FLARE_THICK)
+        # Nothing saved yet: the SavedVariables table is untouched.
+        self.assertEqual(env.run("return OXPFUIDB.opacity"), 0.6)
+        self.assertEqual(env.run("return OXPFUIDB.borderStyle"), "Frames")
+        self.assertEqual(env.run("return HARNESS.reloads"), 0)
+
+    def test_cancel_close_and_escape_restore_the_saved_look(self):
+        for closer in ("OXPFUIPanel.cancelBtn:Click()", "OXPFUIPanel.CloseButton:Click()",
+                       "OXPFUIPanel:Hide()"):
+            with self.subTest(closer=closer):
+                env = open_panel()
+                env.run("OXPFUIPanel.opacitySlider:SetValue(0.25)")
+                env.run(closer)
+                self.assertEqual(env.run(self.CARD_ALPHA), 0.6)
+                self.assertEqual(env.run("return OXPFUI.db == OXPFUIDB"), True)
+
+    def test_save_keeps_the_previewed_look(self):
+        env = open_panel()
+        env.run("OXPFUIPanel.opacitySlider:SetValue(0.25)")
+        env.run("OXPFUIPanel.saveBtn:Click()")
+        self.assertEqual(env.run("return OXPFUIDB.opacity"), 0.25)
+        self.assertEqual(env.run(self.CARD_ALPHA), 0.25)
+        self.assertEqual(env.run("return OXPFUI.db == OXPFUIDB"), True)
+        self.assertEqual(env.run("return HARNESS.reloads"), 0)
+
+    def test_dock_changes_move_the_card_live(self):
+        env = Env(flareui=True)
+        env.boot()
+        env.slash("/oxpfui")
+        env.run("OXPFUIPanel.matchBtn:Click()")
+        self.assertEqual(env.run("return OpenXPCard:GetWidth()"), 250)
+        self.assertEqual(env.run("return OXPFUIDB.matchTrackerWidth"), False)
+
+    def test_reload_settings_are_not_previewed(self):
+        env = open_panel()
+        env.run("OXPFUIPanel.windowBtns.card:Click()")  # off: needs a reload
+        self.assertEqual(env.run("return OXPFUI.db.windows.card"), True)
+        self.assertEqual(env.run("return OXPFUI.Settings.IsPreviewing()"), False)
+        env.run("OXPFUIPanel.masterBtn:Click()")
+        self.assertEqual(env.run("return OXPFUI.db.enabled"), True)
+
+    def test_undoing_the_last_live_change_ends_the_preview(self):
+        env = open_panel()
+        env.run("OXPFUIPanel.opacitySlider:SetValue(0.25)")
+        self.assertEqual(env.run("return OXPFUI.Settings.IsPreviewing()"), True)
+        env.run("OXPFUIPanel.opacitySlider:SetValue(0.6)")
+        self.assertEqual(env.run("return OXPFUI.Settings.IsPreviewing()"), False)
+        self.assertEqual(env.run(self.CARD_ALPHA), 0.6)
+
+    def test_mixed_save_writes_previewed_and_reload_settings_then_reloads(self):
+        env = open_panel()
+        env.run("OXPFUIPanel.opacitySlider:SetValue(0.25)")
+        env.run("OXPFUIPanel.windowBtns.card:Click()")
+        env.run("OXPFUIPanel.saveBtn:Click()")
+        self.assertEqual(env.run("return OXPFUIDB.opacity"), 0.25)
+        self.assertEqual(env.run("return OXPFUIDB.windows.card"), False)
+        self.assertEqual(env.run("return HARNESS.reloads"), 1)
+
+
 def flare_env(tracker=None, follow=True, font_path=None, player="Smiter Sogood") -> Env:
     """Env with FlareUI installed and a saved FlareUI2_DB like a real one."""
     env = Env(flareui=True, load_addon=False, db={"followFlareUI": follow})

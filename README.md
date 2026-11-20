@@ -32,8 +32,7 @@ and blocked layout attempts.
 
 The window is built from the game's own UI templates, so it looks and
 works like Blizzard's settings: check boxes, dropdowns, sliders with `<` `>`
-steppers, a number box for the tracker padding, hover tooltips, and
-**Defaults / Cancel / Save** buttons.
+steppers, hover tooltips, and **Defaults / Cancel / Save** buttons.
 
 - **General:** Enable OXP-FUI skin, and *Follow FlareUI tracker style*.
 - **Windows:** one check box per OpenXP window.
@@ -41,9 +40,13 @@ steppers, a number box for the tracker padding, hover tooltips, and
   opacity. These lock while the FlareUI style is being followed.
 - **FlareUI Quest Tracker:** the [tracker dock](#tracker-dock) settings.
 
-Changes are only a draft until you press **Save**. **Cancel**, the close
-button and Escape throw the draft away, and **Defaults** resets the draft
-(press Save to keep it).
+**Live changes.** Every change that does not need a reload shows at once
+while you adjust it (font, border, opacity, the FlareUI style switch,
+turning a window on, the tracker dock). It is only a preview until you
+press **Save**: **Cancel**, the close button and Escape put back the saved
+look, and an unsaved preview is never written to your saved settings.
+**Defaults** resets the window's values (and previews them); press Save
+to keep them.
 
 **Automatic reload.** Save reloads the UI by itself only when a change you
 made needs a reload to show. Before you save, the button reads
@@ -131,9 +134,11 @@ Every saved setting is declared once in `src/OXP-FUI/Settings.lua` with
 
 Missing `reload` is an error at load time, and `tests/test_settings.py`
 fails if the saved settings hold a key that is not declared. The window's
-Save button (`Settings.Commit`) writes the draft, re-applies live settings,
-and calls `Settings.Reload()` if — and only if — a changed setting's rule
-says so. Never call `ReloadUI()` directly; go through `Settings.Commit` or
+window previews every change whose rule says no reload is needed
+(`Settings.Preview`, on a copy of the saved settings, so add-on code must
+read `OXPFUI.db`, never `OXPFUIDB`). Save (`Settings.Commit`) writes the
+draft, re-applies, and calls `Settings.Reload()` if — and only if — a
+changed setting's rule says so. Never call `ReloadUI()` directly; go through `Settings.Commit` or
 `Settings.Reload`. Add the control in `SettingsPanel.lua` with the
 `makeCheckbox` / `makeDropdown` / `makeSlider` helpers, which bind it to the
 draft and add its tooltip, including the reload note.

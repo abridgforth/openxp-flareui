@@ -5,14 +5,14 @@
 --   UICheckButtonTemplate   on/off settings
 --   WowStyle1DropdownTemplate  choices (font, border, tracker edge)
 --   MinimalSliderWithSteppersTemplate  ranges, with < > steppers
---   InputBoxTemplate        typed number entry (tracker padding)
 --   UIPanelButtonTemplate   Defaults / Cancel / Save
 --   GameTooltip             hover help, incl. "requires a UI reload"
 --
--- Edits go into a draft (Settings.NewDraft). Nothing is saved until Save:
--- Settings.Commit writes the db, re-applies live settings and reloads the
--- UI if and only if a changed setting requires it (declared per setting in
--- Settings.lua). Cancel, X and Escape discard the draft. The panel is also
+-- Edits go into a draft (Settings.NewDraft). Every change that needs no
+-- reload shows at once (Settings.Preview) without being saved. Save
+-- (Settings.Commit) writes the settings and reloads the UI if and only if a
+-- changed setting requires it (declared per setting in Settings.lua).
+-- Cancel, X and Escape discard the draft and undo the preview. The panel is also
 -- listed under Options > AddOns with a button that opens this window.
 --
 -- The panel is an OXP-FUI-owned frame: it never touches OpenXP frames.
@@ -28,6 +28,10 @@ local panel -- built lazily on first open
 local WIDTH, HEIGHT = 460, 640
 local LEFT = 20
 local COL2 = 230
+-- Sliders leave room on the right for their value label ("100%", "40px")
+-- inside the window; dropdowns span the column.
+local SLIDER_WIDTH = 160
+local DROPDOWN_WIDTH = 200
 
 -- ---------------------------------------------------------------------------
 -- Small helpers
@@ -127,7 +131,7 @@ local function makeDropdown(f, key, text, tip, y, options)
   local fs = fontString(f.content, "GameFontHighlight", text)
   fs:SetPoint("TOPLEFT", f, "TOPLEFT", LEFT + 4, y - 6)
   local dd = CreateFrame("DropdownButton", nil, f, "WowStyle1DropdownTemplate")
-  dd:SetWidth(200)
+  dd:SetWidth(DROPDOWN_WIDTH)
   dd:SetPoint("TOPLEFT", f, "TOPLEFT", COL2, y)
   local function textFor(value)
     for _, o in ipairs(options) do
@@ -160,7 +164,7 @@ local function makeSlider(f, key, text, tip, y, format)
   local fs = fontString(f.content, "GameFontHighlight", text)
   fs:SetPoint("TOPLEFT", f, "TOPLEFT", LEFT + 4, y - 6)
   local sl = CreateFrame("Frame", nil, f, "MinimalSliderWithSteppersTemplate")
-  sl:SetSize(200, 20)
+  sl:SetSize(SLIDER_WIDTH, 20)
   sl:SetPoint("TOPLEFT", f, "TOPLEFT", COL2, y - 2)
   local steps = math.floor((def.max - def.min) / def.step + 0.5)
   local formatters = {}
@@ -178,7 +182,7 @@ local function makeSlider(f, key, text, tip, y, format)
     snapped = math.floor(snapped * 100 + 0.5) / 100
     if f.draft[key] ~= snapped then
       f.draft[key] = snapped
-      f:OnDraftChanged(key)
+      f:OnDraftChanged()
     end
   end
   if event then safe(sl, "RegisterCallback", event, onValue, sl) end
@@ -187,34 +191,6 @@ local function makeSlider(f, key, text, tip, y, format)
   function control.Refresh() safe(sl, "SetValue", f.draft[key]) end
   f.controls[key] = control
   return sl
-end
-
--- A numeric box bound to a range setting (typed entry beside its slider).
-local function makeNumberInput(f, key, slider)
-  local def = Settings.Get(key)
-  local eb = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-  eb:SetSize(34, 20)
-  eb:SetPoint("LEFT", slider, "RIGHT", 14, 0)
-  eb:SetAutoFocus(false)
-  safe(eb, "SetNumeric", true)
-  safe(eb, "SetMaxLetters", #tostring(def.max))
-  safe(eb, "SetJustifyH", "CENTER")
-  local function show() eb:SetText(tostring(f.draft[key] or def.default)) end
-  local function commitText()
-    local n = tonumber(eb:GetText())
-    if n then
-      n = math.max(def.min, math.min(def.max, math.floor(n + 0.5)))
-      f.draft[key] = n
-      safe(slider, "SetValue", n)
-      f:OnDraftChanged(key)
-    end
-    show()
-  end
-  eb:SetScript("OnEnterPressed", function(self) commitText(); self:ClearFocus() end)
-  eb:SetScript("OnEditFocusLost", function() commitText() end)
-  eb:SetScript("OnEscapePressed", function(self) show(); self:ClearFocus() end)
-  attachTooltip(eb, L.attachPaddingLabel, L.attachPaddingTip, def)
-  return eb, show
 end
 
 -- ---------------------------------------------------------------------------
@@ -322,8 +298,6 @@ local function buildPanel()
   y = y - 32
   f.paddingSlider = makeSlider(f, "attachPadding", L.attachPaddingLabel, L.attachPaddingTip, y,
     function(v) return L.attachPaddingValue:format(math.floor(v + 0.5)) end)
-  f.paddingSlider:SetWidth(160)
-  f.paddingInput, f.showPaddingText = makeNumberInput(f, "attachPadding", f.paddingSlider)
   y = y - 30
   f.matchBtn = makeCheckbox(f, "matchTrackerWidth", L.matchWidthLabel, L.matchWidthTip, LEFT, y)
 
@@ -358,13 +332,12 @@ local function buildPanel()
   -- Behaviour --------------------------------------------------------------------
   function f:RefreshControls()
     for _, control in pairs(self.controls) do control.Refresh() end
-    if self.showPaddingText then self.showPaddingText() end
     self:OnDraftChanged()
   end
 
   -- Pending changes drive the Save button, the reload note and the
   -- follow-FlareUI lock on the appearance controls.
-  function f:OnDraftChanged(fromKey)
+  function f:OnDraftChanged()
     local changes = Settings.Changes(self.draft)
     local needsReload = Settings.ChangesNeedReload(changes)
     setEnabled(self.saveBtn, #changes > 0)
@@ -396,14 +369,21 @@ local function buildPanel()
     else
       self.styleNote:SetText("")
     end
-    if fromKey == "attachPadding" and self.showPaddingText then self.showPaddingText() end
+
+    -- Live preview: show every change that needs no reload right away.
+    local live = false
+    for _, c in ipairs(changes) do
+      if not c.reload then live = true end
+    end
+    if live then
+      Settings.Preview(self.draft)
+    elseif Settings.IsPreviewing() then
+      Settings.EndPreview() -- the last live change was undone
+    end
   end
 
   function f:Save()
-    local draft = self.draft
-    self.saving = true
-    local _, reloaded = Settings.Commit(draft)
-    self.saving = false
+    local _, reloaded = Settings.Commit(self.draft)
     if not reloaded then self:Hide() end
   end
 
@@ -414,6 +394,7 @@ local function buildPanel()
   end)
   f:SetScript("OnHide", function(self)
     if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
+    Settings.EndPreview() -- no-op after Save (Commit ends the preview)
     self.draft = Settings.NewDraft()
   end)
 

@@ -44,6 +44,10 @@ function OXPFUI.InitDB()
   local db = _G.OXPFUIDB
   if type(db.windows) ~= "table" then db.windows = {} end
   OXPFUI.Settings.FillMissing(db)
+  -- savedDb is the SavedVariables table; OXPFUI.db is what the skins read.
+  -- They are the same table except while the settings window previews
+  -- unsaved changes (Settings.Preview), so a preview never reaches disk.
+  OXPFUI.savedDb = db
   OXPFUI.db = db
   return db
 end

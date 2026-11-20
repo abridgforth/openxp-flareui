@@ -527,7 +527,6 @@ class SettingsPanel(unittest.TestCase):
             ("OXPFUIPanel.fontDropdown", "WowStyle1DropdownTemplate"),
             ("OXPFUIPanel.borderDropdown", "WowStyle1DropdownTemplate"),
             ("OXPFUIPanel.opacitySlider", "MinimalSliderWithSteppersTemplate"),
-            ("OXPFUIPanel.paddingInput", "InputBoxTemplate"),
             ("OXPFUIPanel.saveBtn", "UIPanelButtonTemplate"),
             ("OXPFUIPanel.cancelBtn", "UIPanelButtonTemplate"),
             ("OXPFUIPanel.defaultsBtn", "UIPanelButtonTemplate"),
@@ -587,6 +586,7 @@ class SettingsPanel(unittest.TestCase):
         env.run("OXPFUIPanel.windowBtns['talents']:Click()")
         env.run("HARNESS.PickDropdown(OXPFUIPanel.fontDropdown, 'Asap Condensed')")
         env.run("OXPFUIPanel.opacitySlider:SetValue(0.85)")
+        # Saved settings are untouched (only previewed) until Save.
         self.assertEqual(env.run("return OXPFUIDB.windows.talents"), True)
         self.assertEqual(env.run("return OXPFUIDB.font"), "Friz Quadrata")
         self.assertEqual(env.run("return OXPFUIDB.opacity"), 0.6)
@@ -598,7 +598,7 @@ class SettingsPanel(unittest.TestCase):
         env.run("HARNESS.PickDropdown(OXPFUIPanel.borderDropdown, 'None')")
         env.run("OXPFUIPanel.opacitySlider:SetValue(0.85)")
         env.run("HARNESS.PickDropdown(OXPFUIPanel.attachSideDropdown, 'Top')")
-        env.run("HARNESS.TypeInto(OXPFUIPanel.paddingInput, '20')")
+        env.run("OXPFUIPanel.paddingSlider:SetValue(20)")
         env.run("OXPFUIPanel.matchBtn:Click()")
         env.run("OXPFUIPanel.followBtn:Click()")
         env.run("OXPFUIPanel.saveBtn:Click()")
@@ -614,11 +614,19 @@ class SettingsPanel(unittest.TestCase):
         self.assertEqual(env.run("return HARNESS.reloads"), 0)
         self.assertEqual(env.run("return OXPFUIPanel:IsShown()"), False)
 
-    def test_typed_padding_is_clamped_to_its_range(self):
+    def test_sliders_share_one_width_and_padding_has_no_text_box(self):
         env = self._open()
-        env.run("HARNESS.TypeInto(OXPFUIPanel.paddingInput, '99')")
+        self.assertEqual(env.run("return OXPFUIPanel.opacitySlider:GetWidth()"),
+                         env.run("return OXPFUIPanel.paddingSlider:GetWidth()"))
+        # Slider + value label stay inside the window (value label ~45 wide).
+        self.assertLessEqual(env.run(
+            "local _,_,_,x = OXPFUIPanel.opacitySlider:GetPoint(1); "
+            "return x + OXPFUIPanel.opacitySlider:GetWidth() + 45"),
+            env.run("return OXPFUIPanel:GetWidth() - 10"))
+        self.assertIsNone(env.run("return OXPFUIPanel.paddingInput"))
+        env.run("OXPFUIPanel.paddingSlider:SetValue(99)")
         self.assertEqual(env.run("return OXPFUIPanel.draft.attachPadding"), 40)
-        self.assertEqual(env.run("return OXPFUIPanel.paddingInput:GetText()"), "40")
+        self.assertEqual(env.run("return OXPFUIPanel.opacitySlider.RightText:GetText()"), "60%")
 
     def test_cancel_and_close_discard_the_draft(self):
         env = self._open()
@@ -645,7 +653,7 @@ class SettingsPanel(unittest.TestCase):
         env.run("OXPFUIPanel.defaultsBtn:Click()")
         self.assertEqual(env.run("return OXPFUIPanel.draft.font"), "Friz Quadrata")
         self.assertEqual(env.run("return OXPFUIPanel.fontDropdown:GetText()"), "Friz Quadrata")
-        self.assertEqual(env.run("return OXPFUIPanel.paddingInput:GetText()"), "8")
+        self.assertEqual(env.run("return OXPFUIPanel.paddingSlider:GetValue()"), 8)
         self.assertEqual(env.run("return OXPFUIDB.font"), "Fira Condensed")
 
     def test_saved_live_changes_reapply_the_skin(self):
@@ -662,6 +670,9 @@ class SettingsPanel(unittest.TestCase):
             "local r,g,b,a = RXPG_ARROW:GetBackdropColor(); return a"), 0.3)
 
     def test_panel_never_touches_openxp_frames(self):
+        # The window itself never calls into OpenXP frames: with no live
+        # change pending (reload-only edits, hovering, closing) nothing is
+        # drawn on them at all.
         env = Env()
         env.boot()
         frames = ("OpenXPCard", "RXPG_ARROW", "RXPTargetFrame", "RXPFrame",
@@ -670,13 +681,25 @@ class SettingsPanel(unittest.TestCase):
         env.slash("/oxpfui")
         env.run("OXPFUIPanel.masterBtn:Click()")
         env.run("OXPFUIPanel.windowBtns['card']:Click()")
-        env.run("HARNESS.PickDropdown(OXPFUIPanel.fontDropdown, 'Asap Condensed')")
-        env.run("OXPFUIPanel.opacitySlider:SetValue(0.5)")
         env.run("HARNESS.Hover(OXPFUIPanel.masterBtn)")
         env.run("OXPFUIPanel.CloseButton:Click()")
         for frame in frames:
             self.assertEqual(env.calls_made_on(frame), baseline[frame],
                              f"{frame} was touched by the settings panel")
+
+    def test_live_preview_restyles_but_never_moves_or_resizes(self):
+        # Live changes go through the normal skin pass: appearance only.
+        env = Env()
+        env.boot()
+        frames = ("RXPG_ARROW", "RXPTargetFrame", "RXPFrame")
+        layout = ("SetPoint", "ClearAllPoints", "SetSize", "SetWidth", "SetHeight", "SetScale")
+        before = {(f, m): env.calls_made_on(f, m) for f in frames for m in layout}
+        env.slash("/oxpfui")
+        env.run("HARNESS.PickDropdown(OXPFUIPanel.fontDropdown, 'Asap Condensed')")
+        env.run("OXPFUIPanel.opacitySlider:SetValue(0.5)")
+        env.run("OXPFUIPanel.cancelBtn:Click()")
+        for (f, m), n in before.items():
+            self.assertEqual(env.calls_made_on(f, m), n, f"{f}:{m} called by a live preview")
 
     def test_version_note_in_panel_when_versions_differ(self):
         env = self._open(openxp_version="1.3.40")
