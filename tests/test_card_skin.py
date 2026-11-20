@@ -151,7 +151,10 @@ class CardPalette(unittest.TestCase):
         env.boot()
         bits = "HARNESS.cardBits"
         self.assertEqual(vertex_of(env, f"{bits}.header.dot"), ZONE)
-        self.assertEqual(vertex_of(env, f"{bits}.progress"), ZONE)
+        # The step progress fill is a solid colour texture (no vertex colour
+        # to match): it is repainted in the title colour, gold by default.
+        self.assertEqual(env.run(f"return {bits}.progress:GetColorTexture()"),
+                         (1.0, 0.82, 0.0, 1.0))
         # the rested-XP wash keeps its softer alpha, just amber instead of blue
         self.assertEqual(vertex_of(env, f"{bits}.xpStrip.rested"),
                          (0.80, 0.60, 0.34, 0.35))
@@ -639,3 +642,108 @@ class CardRobustness(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StepListWindow(unittest.TestCase):
+    """The step list (OpenXP 1.3.66 card.BuildStepList / FillStepList)."""
+
+    def _open(self, **kw):
+        env = Env(**kw)
+        env.boot()
+        env.run("HARNESS.openxp.card.ToggleStepList()")
+        return env
+
+    def test_scrolling_keeps_the_flareui_font(self):
+        env = self._open()
+        self.assertNotIn("ARIALN", env.run("return (HARNESS.cardBits.list.rows[1].text:GetFont())"))
+        # OpenXP's wheel handler refills (and re-fonts) every row.
+        env.run("local l = HARNESS.cardBits.list; l:GetScript('OnMouseWheel')(l, -1)")
+        self.assertEqual(env.run("return HARNESS.cardBits.list.offset"), 3)
+        for r in range(1, 7):
+            self.assertNotIn("ARIALN", env.run(f"return (HARNESS.cardBits.list.rows[{r}].text:GetFont())"),
+                             f"row {r} lost the skin font after scrolling")
+
+    def test_every_row_text_has_a_right_edge(self):
+        env = self._open()
+        # Rows past the current step have no status: their text must end at
+        # the row's own padding, not at a widthless hidden pill.
+        anchors = env.run("""
+          local out = {}
+          for i, row in ipairs(HARNESS.cardBits.list.rows) do
+            local rel
+            for n = 1, row.text:GetNumPoints() do
+              local pt, r = row.text:GetPoint(n)
+              if pt == 'RIGHT' then rel = r end
+            end
+            out[#out + 1] = (rel == row and 'row') or (rel == row.pill and 'pill') or 'none'
+            out[#out + 1] = row.pill:IsShown() and 'P' or '-'
+          end
+          return table.concat(out, ',')
+        """).split(",")
+        for i in range(0, len(anchors), 2):
+            edge, pill = anchors[i], anchors[i + 1]
+            self.assertEqual(edge, "pill" if pill == "P" else "row", f"row {i // 2 + 1}")
+
+    def test_list_gets_bottom_padding_once(self):
+        env = self._open()
+        expected = 28 + 6 * 18 + 8 + 6
+        self.assertEqual(env.run("return HARNESS.cardBits.list:GetHeight()"), expected)
+        env.run("OXPFUI.Reapply('again'); OXPFUI.Reapply('again')")
+        self.assertEqual(env.run("return HARNESS.cardBits.list:GetHeight()"), expected)
+
+    def test_close_button_wears_blizzards_red_close_art(self):
+        env = self._open()
+        self.assertEqual(env.run("return HARNESS.cardBits.list.close.oxpfuiRed:GetAtlas()"), "RedButton-Exit")
+        self.assertEqual(env.run("return HARNESS.cardBits.list.close.icon:GetAlpha()"), 0)
+        self.assertEqual(env.run("return HARNESS.cardBits.list.close:GetHighlightTexture():GetAtlas()"),
+                         "RedButton-Highlight")
+        # Still OpenXP's button: same click.
+        env.run("HARNESS.cardBits.list.close:Click()")
+        self.assertEqual(env.run("return HARNESS.cardBits.list:IsShown()"), False)
+
+    def test_close_button_keeps_openxps_look_without_the_atlas(self):
+        env = Env(load_addon=False)
+        env.run("HARNESS.missingAtlases = { ['RedButton-Exit'] = true }")
+        env.load_addon()
+        env.boot()
+        env.run("HARNESS.openxp.card.ToggleStepList()")
+        self.assertEqual(env.run("return HARNESS.cardBits.list.close.icon:GetAlpha()"), 1)
+
+
+class ProgressUnderStrip(unittest.TestCase):
+    def _drop(self, env):
+        return env.run("local _, _, _, _, y = OpenXPCard.oxpfuiTrack:GetPoint(1); return y")
+
+    def test_progress_line_drops_below_the_title_strip(self):
+        env = Env()  # separators on by default
+        env.boot()
+        self.assertEqual(self._drop(env), -3)
+        self.assertEqual(env.run("local _, _, _, _, y = HARNESS.cardBits.progress:GetPoint(1); return y"), -3)
+
+    def test_progress_line_stays_without_strips(self):
+        env = Env(db={"separators": False, "followFlareUI": False})
+        env.boot()
+        self.assertEqual(self._drop(env), 0)
+
+
+class SectionRules(unittest.TestCase):
+    def test_up_next_rule_sits_on_openxps_separator_line(self):
+        env = Env()
+        env.boot()
+        band = env.run("""
+          local u = HARNESS.cardBits.upNext
+          local b = u.oxpfuiBands.upnext
+          local pt, rel, relPt = b:GetPoint(1)
+          return pt, rel == u.sep, relPt, b.oxpfuiStrip.L:IsShown()
+        """)
+        self.assertEqual(band, ("TOP", True, "TOP", True))
+        self.assertEqual(env.run("return HARNESS.cardBits.upNext.sep:GetAlpha()"), 0)
+
+    def test_history_rule_sits_at_the_end_of_the_history_band(self):
+        env = Env()
+        env.boot()
+        self.assertEqual(env.run("""
+          local h = HARNESS.cardBits.hist
+          local pt, rel, relPt = h.oxpfuiBands.history:GetPoint(1)
+          return pt, rel == h, relPt
+        """), ("TOP", True, "BOTTOM"))

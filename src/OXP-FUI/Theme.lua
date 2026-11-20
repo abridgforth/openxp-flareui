@@ -526,6 +526,24 @@ function theme.ApplyTitleStrips(frame, header)
   return drawn
 end
 
+-- A rule between two sections: the title art's bottom line with its end
+-- knobs (the same rods FlareUI's tracker draws around its header), across
+-- `frame` inside its text padding, centred on `region`'s top or bottom edge.
+-- host (default frame): the frame the band belongs to, so the rule shows
+-- and hides with that section.
+function theme.ApplySectionRule(frame, region, edge, key, host)
+  local A = theme.ART
+  local band = theme.Band(host or frame, key or "rule")
+  if not (region and theme.StripsOn()) then theme.HideStrip(band) return false end
+  band:ClearAllPoints()
+  band:SetHeight(1)
+  band:SetPoint("TOP", region, edge == "BOTTOM" and "BOTTOM" or "TOP")
+  band:SetPoint("LEFT", frame, "LEFT", A.PAD, 0)
+  band:SetPoint("RIGHT", frame, "RIGHT", -A.PAD, 0)
+  local reach = theme.ArtReach(A.TITLE)
+  return theme.PlaceStrip(band, A.TITLE, reach, reach, A.FOOT_BAND)
+end
+
 -- A section heading's strip behind `label` (a font string or frame),
 -- across `frame` inside its text padding, like FlareUI's zone headings.
 -- host (default frame): the frame the band belongs to, so the strip shows

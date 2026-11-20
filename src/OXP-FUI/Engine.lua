@@ -21,8 +21,9 @@
 --     OpenXP module functions, e.g. the tooltip-quest-lines skin)
 --
 -- Guarded frames refuse layout calls (SetPoint/SetSize/SetWidth/SetHeight/
--- SetScale/...): OXP-FUI never moves or resizes an OpenXP frame, by
--- construction; the attempt is logged for /oxpfui debug. A guarded frame
+-- SetScale/...), so a skin cannot move or resize an OpenXP frame by
+-- accident; the attempt is logged for /oxpfui debug. The few deliberate
+-- layout changes are the exceptions listed in Core.lua's layout policy. A guarded frame
 -- carries the real frame in .__raw, so skins (and Theme chrome recipes)
 -- parent and anchor their own textures to the frame the client knows.
 -- Every other method read through the guard is returned as a wrapper that
@@ -37,10 +38,9 @@
 -- splits, active-item visuals) and re-applies every skin after each one, so
 -- OXP-FUI always wins over OpenXP's own theme, font and outline settings.
 --
--- The card dock (Docking.lua) is the sanctioned exception to the blocked
--- layout above: it runs outside the skin pipeline (Update rides along at
--- the end of every Reapply) and is the only OXP-FUI code that moves or
--- resizes an OpenXP frame, gated on its own saved switches.
+-- The card dock (Docking.lua), layout exception 1, runs outside the skin
+-- pipeline (Update rides along at the end of every Reapply), gated on its
+-- own saved switches.
 
 local ADDON_NAME, OXPFUI = ...
 
@@ -358,6 +358,9 @@ local function InstallHooks()
   HookRefresh(openxp.card, "SkinPanels", "card.SkinPanels")
   HookRefresh(openxp.card, "SkinPanel", "card.SkinPanel")
   HookRefresh(openxp.card, "ApplyFonts", "card.ApplyFonts")
+  -- The step list refills its rows (and re-fonts them) on every scroll and
+  -- open, outside card.Refresh.
+  HookRefresh(openxp.card, "FillStepList", "card.FillStepList")
   HookRefresh(openxp.targeting, "UpdateTargetFrame", "targeting.UpdateTargetFrame")
   HookRefresh(openxp.targeting, "RenderTargetFrameBackground", "targeting.RenderTargetFrameBackground")
   HookRefresh(openxp.tracker, "UpdateLevelSplits", "tracker.UpdateLevelSplits")

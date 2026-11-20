@@ -1,13 +1,33 @@
 -- OXP-FUI · Core: namespace, saved settings, slash commands.
 --
 -- OXP-FUI restyles OpenXP's windows to the FlareUI Quest Tracker look at
--- runtime. It never modifies OpenXP files, never touches the world Map,
+-- runtime. It never modifies OpenXP files, and never touches the world Map,
 -- the Minimap, OpenXP's settings windows, the hidden legacy RestedXP window
--- or any Blizzard frame, and the skins never change OpenXP layout, positions
--- or sizes (guarded, see Engine.lua). The one sanctioned exception is the
--- optional card dock (Docking.lua): while its switch is on and a live
--- FlareUI Quest Tracker exists, it re-anchors the guide card to the tracker
--- and can match the card's width to it.
+-- or any Blizzard frame.
+--
+-- Layout policy (OXP-FUI's own design rule; OpenXP imposes nothing here):
+-- skins change appearance (colours, fonts, borders, art) and leave layout to
+-- OpenXP, so OpenXP updates keep working, the two addons never fight over a
+-- frame's size or place, and switching OXP-FUI off restores OpenXP exactly.
+-- Accidental layout calls are blocked by the engine's guard (Engine.lua) and
+-- counted in /oxpfui debug. A layout change is allowed only as a listed
+-- exception: deliberate (done on the real frame), small, idempotent,
+-- re-applied after every OpenXP refresh, and documented here and in the
+-- README. The exceptions:
+--
+--   1. Card dock (Docking.lua): with its switch on and a live FlareUI Quest
+--      Tracker, the guide card is anchored to the tracker, optionally at its
+--      width.
+--   2. Card progress bars (Card.lua): the step progress fill and the XP
+--      strip are inset from the border art; the step progress line drops a
+--      few px below the title strip when one is drawn.
+--   3. "Up next" lines (Card.lua): narrowed by exactly the width the
+--      FlareUI label font adds, restoring OpenXP's right edge.
+--   4. Step list rows (Card.lua): each row's text ends at its status pill or
+--      the row's padding (OpenXP leaves pill-less rows without a right edge,
+--      so their text ran out of the window).
+--   5. Step list bottom padding (Card.lua): the list grows a few px so the
+--      last row clears the border art.
 
 local ADDON_NAME, OXPFUI = ...
 

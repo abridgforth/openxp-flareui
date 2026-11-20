@@ -266,22 +266,45 @@ local cardBits = HARNESS.cardBits
 
 function card.BuildStepList()
   if list then return list end
+  -- OpenXPCard.lua 1.3.66 card.BuildStepList (geometry and anchors).
   list = CreateFrame("Frame", nil, card, "BackdropTemplate")
+  list:SetWidth(340)
   list.offset = 0
   list.count = 0
   list.title = list:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  list.title:SetPoint("TOPLEFT", 14, -9)
   list.close = MakeBarButton(list)
+  list.close.icon:SetTexture(CARD_TEX .. "cross")
+  list.close:SetSize(40, 30)
+  list.close:SetPoint("TOPRIGHT", -4, -4)
+  list.close:SetScript("OnClick", function() list:Hide() end)
   list.rows = {}
   for r = 1, LIST_ROWS do
     local row = CreateFrame("Button", nil, list)
+    row:SetHeight(18)
+    row:SetPoint("TOPLEFT", 4, -28 - (r - 1) * 18)
+    row:SetPoint("TOPRIGHT", -4, -28 - (r - 1) * 18)
     row.hl = row:CreateTexture(nil, "BACKGROUND")
     row.num = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    row.num:SetPoint("LEFT", 6, 0)
     row.pill = MakePill(row)
+    row.pill:SetPoint("RIGHT", -6, 0)
     row.text = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    row.text:SetPoint("LEFT", row.num, "RIGHT", 8, 0)
+    -- OpenXP's own anchor: a pill that never had a status has no width, so
+    -- this edge is undefined and the text runs unbounded (the in-game bug).
+    row.text:SetPoint("RIGHT", row.pill, "LEFT", -6, 0)
+    row.text:SetWordWrap(false)
     list.rows[r] = row
   end
   list:SetHeight(28 + LIST_ROWS * 18 + 8)
   list:EnableMouseWheel(true)
+  -- The wheel goes through the module table, so a hook on it runs too.
+  list:SetScript("OnMouseWheel", function(self, delta)
+    self.offset = math.max(0, math.min((self.count or 0) - LIST_ROWS, self.offset - delta * 3))
+    local module = HARNESS.openxp and HARNESS.openxp.card or card
+    module.FillStepList()
+  end)
   list:Hide()
   cardBits.list = list
   return list
@@ -305,6 +328,9 @@ function card.FillStepList()
     row.index = i
     row.current = i == FAKE_CURRENT
     row.num:SetText(i)
+    -- OpenXP re-fonts every row on each fill (SetFont(row.text, -1)).
+    row.num:SetFont("Fonts\\ARIALN.TTF", 11, "")
+    row.text:SetFont("Fonts\\ARIALN.TTF", 11, "")
     row.text:SetText("Fake step " .. i)
     local status = not row.current and card.StepStatus(nil, i, FAKE_CURRENT) or nil
     row.pill:SetStatus(status)

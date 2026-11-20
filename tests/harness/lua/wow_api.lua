@@ -259,6 +259,12 @@ local function newFrame(frameType, name, parent, template)
     f.SetPushedTexture = function(self, p) record(self, "SetPushedTexture", p); self.__pushedTexture = p end
     f.SetHighlightTexture = function(self, p) record(self, "SetHighlightTexture", p); self.__highlightTexture = p end
     f.SetDisabledTexture = function(self, p) record(self, "SetDisabledTexture", p) end
+    f.SetHighlightAtlas = function(self, atlas, mode)
+      record(self, "SetHighlightAtlas", atlas, mode)
+      if not self.__hlTex then self.__hlTex = self:CreateTexture(nil, "HIGHLIGHT") end
+      self.__hlTex:SetAtlas(atlas)
+    end
+    f.GetHighlightTexture = function(self) return self.__hlTex end
     f.Disable = function(self) record(self, "Disable") end
     f.Enable = function(self) record(self, "Enable") end
   end
@@ -353,9 +359,21 @@ local texExtra = {
     record(self, "SetColorTexture", r, g, b, a)
     self.__texture = nil
     self.__colorTexture = { r, g, b, a or 1 }
-    -- Real-client semantics: a colour texture is a white texture with a
-    -- vertex colour, so GetVertexColor returns the same values.
-    self.__vertexColor = { r, g, b, a or 1 }
+    -- Real-client semantics (seen in game, OpenXP 1.3.66): the colour lives
+    -- in the texture itself; GetVertexColor keeps reporting the vertex tint
+    -- (white unless set), so a colour texture cannot be matched by vertex.
+  end,
+  -- SetAtlas: true unless the test marked the atlas missing (an older client).
+  SetAtlas = function(self, atlas)
+    record(self, "SetAtlas", atlas)
+    if HARNESS.missingAtlases and HARNESS.missingAtlases[atlas] then return false end
+    self.__atlas = atlas
+    return true
+  end,
+  GetAtlas = function(self) return self.__atlas end,
+  GetColorTexture = function(self)
+    local c = self.__colorTexture
+    if c then return c[1], c[2], c[3], c[4] end
   end,
   SetVertexColor = function(self, r, g, b, a)
     record(self, "SetVertexColor", r, g, b, a)

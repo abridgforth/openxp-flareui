@@ -3,8 +3,10 @@
 -- grey objectives, green completed, blue current and a bronze scrollbar;
 -- OpenXP's own borderless icon buttons are left as they are).
 --
--- Everything here is appearance only. The engine's guarded frames refuse
--- layout calls, so this skin cannot move or resize anything OpenXP owns.
+-- Appearance only, except the layout exceptions listed in Core.lua's layout
+-- policy (2-5: progress bars, "Up next" lines, step list rows and bottom
+-- padding), which work on the real frames on purpose. The engine's guarded
+-- frames refuse every other layout call.
 -- OpenXP's card children are unnamed; they are found by walking the card
 -- frame's children and matching OpenXP's own field shapes, and anything
 -- missing (a renamed frame in a new OpenXP) is skipped quietly.
@@ -133,18 +135,22 @@ local function ensureDivider(cardFrame, header)
   t:ClearAllPoints()
   t:SetPoint("TOPLEFT", hf, "BOTTOMLEFT", 2, -1)
   t:SetPoint("TOPRIGHT", hf, "BOTTOMRIGHT", -2, -1)
-  if theme.ApplyTitleStrips(rf, hf) then t:Hide() else t:Show() end
+  local drawn = theme.ApplyTitleStrips(rf, hf)
+  if drawn then t:Hide() else t:Show() end
+  return drawn
 end
 
--- A section's heading strip (history, "Up next"), shown with its section.
--- OpenXP's own thin separator above the section steps aside while the strip
--- is drawn, and comes back when it is not.
-local function sectionStrip(cardFrame, section, label, key, ownSep)
+-- A rule between card sections, where OpenXP draws its own faint 1px
+-- separator (the top of "Up next") or where a section ends (the bottom of
+-- the history band): the tracker's rod with its end knobs, between the
+-- sections rather than under a heading's text. OpenXP's separator steps
+-- aside while the rule is drawn and comes back when it is not.
+local function sectionRule(cardFrame, section, region, edge, key, ownSep)
   local rf = theme.RealFrame(cardFrame)
   local host = theme.RealFrame(section)
-  local lf = theme.RealFrame(label)
-  if not (rf and host and lf and host.GetChildren) then return end
-  local drawn = theme.ApplyHeadingStrip(rf, lf, key, host)
+  local anchor = theme.RealFrame(region)
+  if not (rf and host and anchor and host.GetChildren) then return end
+  local drawn = theme.ApplySectionRule(rf, anchor, edge, key, host)
   local sep = theme.RealFrame(ownSep)
   if sep and sep.SetAlpha then
     if drawn then
@@ -198,8 +204,8 @@ end
 -- further right but keep the old width and run past the card's right
 -- padding (the client's "..." cut included). Each shown line is narrowed by
 -- exactly the amount the label grew, which restores OpenXP's right edge;
--- the client then places the "..." inside that width. This is the second
--- place the card skin lays anything out (see BAR_INSET); only the lines'
+-- the client then places the "..." inside that width. Layout exception 3
+-- (Core.lua); only the lines'
 -- own widths change, and a re-apply with an unchanged label changes nothing.
 local function skinUpNext(upNext)
   local label = theme.RealFrame(upNext.label)
@@ -249,8 +255,75 @@ local function skinMini(mini)
   end
 end
 
+-- The step list's close button (OpenXP: a 40x30 button with a "cross" icon
+-- and a hover wash) wears Blizzard's red close-button art, as FlareUI's and
+-- Blizzard's windows do. Same button, size, spot and click; OpenXP's icon
+-- and wash are hidden while the art shows. Without the atlas (an older
+-- client) OpenXP's own look stays.
+local function styleCloseButton(btn)
+  local b = theme.RealFrame(btn)
+  if not (b and b.CreateTexture) then return end
+  local art = b.oxpfuiRed
+  if not art then
+    art = b:CreateTexture(nil, "ARTWORK", nil, 2)
+    art:SetSize(24, 24)
+    art:SetPoint("CENTER")
+    if not (art.SetAtlas and art:SetAtlas("RedButton-Exit")) then
+      art:Hide()
+      b.oxpfuiRed = false
+      return
+    end
+    b.oxpfuiRed = art
+    if b.SetHighlightAtlas then b:SetHighlightAtlas("RedButton-Highlight", "ADD") end
+    local hl = b.GetHighlightTexture and b:GetHighlightTexture()
+    if hl then hl:ClearAllPoints(); hl:SetAllPoints(art) end
+    b:HookScript("OnMouseDown", function() art:SetAtlas("RedButton-exit-pressed") end)
+    b:HookScript("OnMouseUp", function() art:SetAtlas("RedButton-Exit") end)
+    -- OpenXP's OnEnter brings its wash back; keep it hidden after it.
+    b:HookScript("OnEnter", function(self) if self.bg then self.bg:SetAlpha(0) end end)
+  elseif art == false then
+    return
+  end
+  if b.icon then b.icon:SetAlpha(0) end
+  if b.bg then b.bg:SetAlpha(0) end
+end
+
+-- Layout exception (documented in Core.lua): OpenXP ends a row's text at its
+-- status pill, but a pill that never had a status has no width, so that row's
+-- text has no right edge and runs out of the window. Every row's text ends
+-- at the pill when one shows, else at the row's own right padding (OpenXP's
+-- 6px), and truncates with "..." there as OpenXP intends.
+local function boundRowText(row)
+  local text, pill, r = theme.RealFrame(row.text), theme.RealFrame(row.pill), theme.RealFrame(row)
+  if not (text and r and text.SetPoint) then return end
+  if pill and pill.IsShown and pill:IsShown() then
+    text:SetPoint("RIGHT", pill, "LEFT", -6, 0)
+  else
+    text:SetPoint("RIGHT", r, "RIGHT", -6, 0)
+  end
+  if text.SetWordWrap then text:SetWordWrap(false) end
+end
+
+-- Layout exception (documented in Core.lua): OpenXP sizes the list to
+-- 28 + rows * rowH + 8, leaving the last row 8px from the edge, which the
+-- FlareUI border art covers. The list grows by LIST_BOTTOM_PAD so the last
+-- row has room; only once per OpenXP-set height (idempotent).
+local LIST_BOTTOM_PAD = 6
+local function padListBottom(list)
+  local l = theme.RealFrame(list)
+  if not (l and l.GetHeight and l.SetHeight) then return end
+  local rows = list.rows or {}
+  local expected = 28 + #rows * (list.rowH or 18) + 8
+  local h = l:GetHeight()
+  if type(h) == "number" and math.abs(h - expected) < 0.5 then
+    l:SetHeight(expected + LIST_BOTTOM_PAD)
+  end
+end
+
 local function skinStepList(list, openxp)
   theme.ApplyBackdrop(list)
+  styleCloseButton(list.close)
+  padListBottom(list)
   theme.ApplyText(list.title, "header", "TITLE")
   local rl, rt = theme.RealFrame(list), theme.RealFrame(list.title)
   if rl and rt and rl.GetChildren then theme.ApplyTitleStrips(rl, rt) end
@@ -270,6 +343,7 @@ local function skinStepList(list, openxp)
     end
     theme.ApplyText(row.text, "title", colorName)
     skinPill(row.pill, openxp)
+    boundRowText(row)
   end
   -- FlareUI's procedural bronze scrollbar beside the wheel-scrolled list.
   theme.ApplyScrollBar(list, {
@@ -295,12 +369,17 @@ end
 -- and the window edge). Only the bars themselves move, never the header,
 -- body or any other element; every pass is idempotent.
 local BAR_INSET = 3
+-- With the title strip behind the header, the step progress line drops this
+-- far so it sits under the strip's bottom rod instead of on it. Only OXP-FUI's
+-- own track and OpenXP's fill move; OpenXP's track (which the body and
+-- history hang from) stays where it is.
+local PROGRESS_DROP = 3
 
 -- Inset the header progress bar: the 2px track and the fill that grows
 -- from its left end. OpenXP anchors the body and history to the track's
 -- bottom corners, so the track itself stays; it is hidden and an inset
 -- copy of it is drawn instead, and only the fill is moved and shortened.
-local function insetStepProgress(rf, header, ctx)
+local function insetStepProgress(rf, header, ctx, underStrip)
   local hf = theme.RealFrame(header)
   local okr, regions = pcall(function() return { rf:GetRegions() } end)
   if not (hf and okr) then return end
@@ -337,15 +416,20 @@ local function insetStepProgress(rf, header, ctx)
     own:SetHeight(2)
     rf.oxpfuiTrack = own
   end
+  local drop = underStrip and -PROGRESS_DROP or 0
   own:ClearAllPoints()
-  own:SetPoint("TOPLEFT", hf, "BOTTOMLEFT", BAR_INSET, 0)
-  own:SetPoint("TOPRIGHT", hf, "BOTTOMRIGHT", -BAR_INSET, 0)
+  own:SetPoint("TOPLEFT", hf, "BOTTOMLEFT", BAR_INSET, drop)
+  own:SetPoint("TOPRIGHT", hf, "BOTTOMRIGHT", -BAR_INSET, drop)
   own:SetColorTexture(1, 1, 1, 0.08)
   track:SetAlpha(0)
 
   if not fill then return end
+  -- OpenXP paints the fill once, in its blue, as a solid colour texture (no
+  -- vertex colour to match): it takes the title colour of the scheme in use
+  -- (Blizzard gold, FlareUI bronze), like the tracker's own accents.
+  if fill.SetColorTexture then fill:SetColorTexture(C.TITLE[1], C.TITLE[2], C.TITLE[3], 1) end
   fill:ClearAllPoints()
-  fill:SetPoint("TOPLEFT", track, "TOPLEFT", BAR_INSET, 0)
+  fill:SetPoint("TOPLEFT", track, "TOPLEFT", BAR_INSET, drop)
   -- OpenXP sizes the fill to (card width - 2) * fraction on each refresh;
   -- scale that into the shorter track, once per OpenXP-set width.
   local width, cardW = fill:GetWidth(), rf:GetWidth()
@@ -451,17 +535,17 @@ local function Apply(ctx)
   end
   if header then
     skinHeader(ctx.Guard(header))
-    ensureDivider(f, header)
-    insetStepProgress(rf, header, ctx)
+    local underStrip = ensureDivider(f, header)
+    insetStepProgress(rf, header, ctx, underStrip)
   end
   if cardModule and cardModule.hist then
     skinHist(ctx.Guard(cardModule.hist), openxp)
-    sectionStrip(f, cardModule.hist, cardModule.hist.label, "history")
+    sectionRule(f, cardModule.hist, cardModule.hist, "BOTTOM", "history")
   end
   if cardModule then skinBlocks(cardModule.blocksForTest) end
   if upNext then
     skinUpNext(ctx.Guard(upNext))
-    sectionStrip(f, upNext, upNext.label, "upnext", upNext.sep)
+    sectionRule(f, upNext, upNext.sep or upNext, "TOP", "upnext", upNext.sep)
   end
   if bar then skinBar(ctx.Guard(bar)) end
   if cardModule and cardModule.xpStrip then

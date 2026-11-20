@@ -4,11 +4,36 @@ A companion addon for **OpenXP** on the Forever client that restyles
 OpenXP's windows to match **FlareUI's Quest Tracker** look — bronze borders,
 warm dark fill, gold/amber/green text colours and FlareUI typography.
 
-OpenXP itself is never modified (it keeps receiving upstream updates), the
-skins never move or resize any frame, nothing on the world Map or Minimap
-is touched, and FlareUI does not need to be installed. The one deliberate
-exception is the optional [tracker dock](#tracker-dock), which re-anchors
-only the guide card while its switch is on.
+OpenXP itself is never modified (it keeps receiving upstream updates),
+nothing on the world Map or Minimap is touched, and FlareUI does not need
+to be installed.
+
+## Layout policy
+
+This is OXP-FUI's own design rule (OpenXP imposes nothing): the skins change
+how OpenXP looks (colours, fonts, borders, art) and leave its layout to
+OpenXP. That keeps OXP-FUI working across OpenXP updates, stops the two
+addons fighting over a window's size or place, and means switching OXP-FUI
+off gives you OpenXP's layout back exactly. The engine blocks accidental
+layout changes and counts them in `/oxpfui debug` ("Blocked layout
+attempts").
+
+A layout change is allowed only as a listed exception. Each one is small,
+deliberate, re-applied after every OpenXP refresh, and listed here and in
+`src/OXP-FUI/Core.lua`:
+
+1. **Tracker dock**: the guide card anchors to FlareUI's Quest Tracker
+   ([details](#tracker-dock)).
+2. **Card progress bars**: the step progress fill and XP strip are inset
+   from the border art; the step progress line drops 3 px below the title
+   separator when one is drawn.
+3. **"Up next" lines**: narrowed by exactly the extra width of the FlareUI
+   label font, so they end where OpenXP meant them to.
+4. **Step list rows**: each row's text ends at its status label or the row's
+   padding and is cut off with "…". (OpenXP leaves rows without a status
+   label unbounded, so long steps ran out of the window.)
+5. **Step list bottom padding**: the list is 6 px taller so the last row
+   clears the border.
 
 ## Install
 
@@ -81,12 +106,17 @@ save, or `/reload`).
 ## Section separators
 
 Like FlareUI's tracker, the guide card draws Blizzard's own quest tracker
-strips as separators: the title strip behind the card header and a heading
-strip behind the "Up next" and history sections (OpenXP's own thin
-separator steps aside meanwhile), plus the bottom strip on bordered
-FlareUI-style frames. The step list's title gets the title strip too. When
-following FlareUI, its frame style decides; otherwise the **Section
-separators** check box does.
+art as separators: the title strip behind the card header (and the step
+list's title), and the tracker's rod with its end knobs between card
+sections, on the line where OpenXP draws its own faint separator above
+"Up next" and under the history band (OpenXP's line steps aside
+meanwhile). Bordered FlareUI-style frames also get the bottom strip. The
+step progress line is repainted in the title colour (gold in the Blizzard
+scheme). When following FlareUI, its frame style decides whether
+separators are drawn; otherwise the **Section separators** check box does.
+
+The step list's close button wears Blizzard's red close-button art, and the
+list keeps the FlareUI font while scrolling.
 
 ## Timer bars
 
