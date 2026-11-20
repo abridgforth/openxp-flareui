@@ -112,10 +112,11 @@ local function place(t, card, m)
     t:SetPoint("TOPLEFT", card, "BOTTOMLEFT", 0, -GAP)
     state.where = "card"
   else
+    -- Top-aligned with the guide card.
     if cardOnRight(card) then
-      t:SetPoint("TOPRIGHT", card, "TOPLEFT", -SIDE_GAP, -GAP + 4)
+      t:SetPoint("TOPRIGHT", card, "TOPLEFT", -SIDE_GAP, 0)
     else
-      t:SetPoint("TOPLEFT", card, "TOPRIGHT", SIDE_GAP, -GAP + 4)
+      t:SetPoint("TOPLEFT", card, "TOPRIGHT", SIDE_GAP, 0)
     end
     state.where = "card"
   end

@@ -274,6 +274,12 @@ local function buildPanel()
   for _, entry in ipairs(theme.FONTS) do
     fontOptions[#fontOptions + 1] = { value = entry.key, text = entry.key }
   end
+  f.frameStyleDropdown = makeDropdown(f, "frameStyle", L.frameStyleLabel, L.frameStyleTip, y, {
+    { value = "blizzard", text = L.frameStyles.blizzard },
+    { value = "flareui", text = L.frameStyles.flareui },
+    { value = "custom", text = L.frameStyles.custom },
+  })
+  y = y - 32
   f.fontDropdown = makeDropdown(f, "font", L.fontLabel, L.fontTip, y, fontOptions)
   y = y - 32
   local borderOptions = {}
@@ -284,8 +290,6 @@ local function buildPanel()
   y = y - 32
   f.opacitySlider = makeSlider(f, "opacity", L.opacityLabel, L.opacityTip, y,
     function(v) return L.opacityValue:format(math.floor(v * 100 + 0.5)) end)
-  y = y - 30
-  f.separatorsBtn = makeCheckbox(f, "separators", L.separatorsLabel, L.separatorsTip, LEFT, y)
 
   -- FlareUI Quest Tracker ----------------------------------------------------
   y = y - 36
@@ -370,9 +374,16 @@ local function buildPanel()
 
     local flareAvailable = OXPFUI.FlareStyle and OXPFUI.FlareStyle.Available()
     local following = self.draft.followFlareUI == true and flareAvailable
-    for _, key in ipairs({ "font", "borderStyle", "opacity", "separators" }) do
+    for _, key in ipairs({ "frameStyle", "font", "borderStyle", "opacity" }) do
       local control = self.controls[key]
       if control then setEnabled(control.widget, not following) end
+    end
+    -- FlareUI's rules: the border is only a choice in the Custom style, the
+    -- opacity in FlareUI and Custom (Blizzard has no background).
+    if not following then
+      local style = self.draft.frameStyle
+      setEnabled(self.controls.borderStyle and self.controls.borderStyle.widget, style == "custom")
+      setEnabled(self.controls.opacity and self.controls.opacity.widget, style ~= "blizzard")
     end
     if following then
       self.styleNote:SetText(L.followActiveNote)

@@ -64,7 +64,9 @@ OXPFUI.RegisterSkin{
         local tc = theme.TitleCase(text:GetText())
         if tc ~= text:GetText() then text:SetText(tc) end
       end
-      if rf and rt and rf.GetChildren then theme.ApplyHeaderBand(rf, rt, "targetsHeader") end
+      if rf and rt and rf.GetChildren then
+        theme.ApplyWindow(rf, { header = rt, headerStyle = "band", key = "targetsHeader" })
+      end
       if title.keyHint then
         theme.ApplyText(title.keyHint, "body", "DIM")
       end

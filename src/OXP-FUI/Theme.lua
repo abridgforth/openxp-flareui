@@ -149,9 +149,42 @@ local function flare()
 end
 theme.FlareOverrides = flare
 
-function theme.BorderKey(db)
+-- ---------------------------------------------------------------------------
+-- Frame style: one model for every window, FlareUI's own (ObjectiveTracker.lua
+-- Build.FrameStyle / GetBorderFile / ApplyBackdrop / HeaderArtOn):
+--
+--   blizzard  no background, no border; header strips and separators
+--   flareui   FlareUI's Thick border at the chosen opacity; strips seated on
+--             the border, plus the bottom strip
+--   custom    the chosen border and opacity; no strips or separators
+--
+-- Following FlareUI, its tracker's frame style is used; otherwise OXP-FUI's
+-- own Frame Style setting. A strip therefore only ever appears with no
+-- border or with the Thick border it is shaped for (never on Frames/Thin,
+-- whose rounded corners would show around it).
+-- ---------------------------------------------------------------------------
+
+function theme.FrameStyle(db)
+  db = db or OXPFUI.db or {}
   local f = flare()
-  local key = (f and f.border) or db.borderStyle
+  if f and f.frameStyle then return f.frameStyle end
+  local s = db.frameStyle
+  if s == "blizzard" or s == "flareui" then return s end
+  return "custom"
+end
+
+function theme.BorderKey(db)
+  db = db or {}
+  local f = flare()
+  local key
+  if f and f.border then
+    key = f.border
+  else
+    local style = theme.FrameStyle(db)
+    if style == "blizzard" then key = "None"
+    elseif style == "flareui" then key = "Thick"
+    else key = db.borderStyle end
+  end
   if theme.BORDERS[key] then return key end
   return theme.DEFAULT_BORDER
 end
@@ -163,6 +196,7 @@ local DEFAULT_OPACITY = 0.6
 local function panelOpacity(db)
   local f = flare()
   if f and type(f.opacity) == "number" then return f.opacity end
+  if theme.FrameStyle(db) == "blizzard" then return 0 end
   local opacity = db.opacity
   if type(opacity) ~= "number" then opacity = DEFAULT_OPACITY end
   return opacity
@@ -386,6 +420,7 @@ theme.ART = {
   FOOT_BAND = { 31 / 40, 38 / 40 }, -- the title art's bottom line + knobs
   FOOT_Y = 2.5,       -- that line's middle above the frame's bottom edge
   HEADER_INSET = 8,   -- header band from the frame edges
+  HEADER = 30,        -- FlareUI's header band height (C.HEADER)
   PAD = 14,           -- text from the frame edges
 }
 
@@ -408,19 +443,10 @@ function theme.ArtReach(atlas)
   return info and math.max(0, (info.width - theme.ART.FRAME) / 2) or 0
 end
 
--- Are separators drawn? Following FlareUI: its frame style decides (Blizzard
--- and FlareUI yes, Custom no). Otherwise the "Section separators" setting.
+-- Are strips and separators drawn? The frame style decides (FlareUI's
+-- HeaderArtOn): Blizzard and FlareUI yes, Custom no.
 function theme.StripsOn()
-  local f = flare()
-  if f and f.strips ~= nil then return f.strips end
-  local db = OXPFUI.db or {}
-  return db.separators ~= false
-end
-
--- The bottom strip with its knobs sits on a border: FlareUI style only.
-function theme.FootOn()
-  local f = flare()
-  return f ~= nil and f.foot == true
+  return theme.FrameStyle() ~= "custom"
 end
 
 -- An OXP-FUI-owned band frame on `parent` (created once per key). Strips are
@@ -522,11 +548,15 @@ function theme.ApplyTitleStrips(frame, header, opts)
   -- The band is placed even without strips: header controls (the step
   -- list's close button) centre on it either way.
   if header then
+    -- FlareUI's header band, exactly (ObjectiveTracker.lua Build.Header): on
+    -- the window, HEADER_INSET in from each side, 3px down, HEADER - 3 tall.
+    -- The strip's knobs are fitted to the Thick border's curve at this spot;
+    -- centring it on another header (OpenXP's starts 1px down, 28px tall)
+    -- lets the border's rounded corners show around the strip.
     band:ClearAllPoints()
-    band:SetPoint("TOP", header, "TOP")
-    band:SetPoint("BOTTOM", header, "BOTTOM")
-    band:SetPoint("LEFT", frame, "LEFT", A.HEADER_INSET, 0)
-    band:SetPoint("RIGHT", frame, "RIGHT", -A.HEADER_INSET, 0)
+    band:SetPoint("TOPLEFT", frame, "TOPLEFT", A.HEADER_INSET, -3)
+    band:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -A.HEADER_INSET, -3)
+    band:SetHeight(A.HEADER - 3)
   end
   if not (header and theme.StripsOn()) then
     theme.HideStrip(band); theme.HideStrip(foot)
@@ -541,8 +571,8 @@ function theme.ApplyTitleStrips(frame, header, opts)
   if drawn and bordered and not (opts and opts.foot == false) then
     foot:ClearAllPoints()
     foot:SetHeight(1)
-    foot:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", A.HEADER_INSET, A.FOOT_Y - 0.5)
-    foot:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -A.HEADER_INSET, A.FOOT_Y - 0.5)
+    foot:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", A.HEADER_INSET, A.FOOT_Y)
+    foot:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -A.HEADER_INSET, A.FOOT_Y)
     theme.PlaceStrip(foot, A.TITLE, leftOut, rightOut, A.FOOT_BAND)
   else
     theme.HideStrip(foot)
@@ -775,6 +805,16 @@ function theme.ApplyHeaderBand(frame, header, key)
   key = key or "header"
   local A = theme.ART
   local band = theme.Band(frame, key)
+  if not theme.StripsOn() then
+    -- Custom frame style: no header art (FlareUI's HeaderArtOn).
+    if band.fill then band.fill:Hide() end
+    for _, k in ipairs({ key .. "Top", key .. "Bottom" }) do
+      local b = frame.oxpfuiBands and frame.oxpfuiBands[k]
+      if b then theme.HideStrip(b); if b.line then b.line:Hide() end end
+    end
+    return nil
+  end
+  if band.fill then band.fill:Show() end
   band:ClearAllPoints()
   band:SetPoint("TOP", header, "TOP")
   band:SetPoint("BOTTOM", header, "BOTTOM")
@@ -796,7 +836,7 @@ end
 -- label (a font string cannot carry its own band).
 function theme.ApplySectionHeading(frame, label, key)
   local band = theme.Band(frame, key)
-  local shown = label and label.IsShown and label:IsShown()
+  local shown = label and label.IsShown and label:IsShown() and theme.StripsOn()
   if not shown then
     band:Hide()
     if band.fill then band.fill:Hide(); band.line:Hide() end
@@ -827,6 +867,48 @@ function theme.ApplySectionHeading(frame, label, key)
   end
   if not ok then band.line:SetColorTexture(c[1], c[2], c[3], 0.4) end
   return true
+end
+
+
+-- ---------------------------------------------------------------------------
+-- The window component: every OXP-FUI-drawn or skinned window goes through
+-- this, so all of them apply the frame style the same way (background,
+-- border, header art, bottom strip) and a combination FlareUI never draws
+-- cannot happen.
+--
+-- opts.role    "panel" (default: follows the frame style exactly) or
+--              "popup" (always a background and a frame: see
+--              ApplyPopupBackdrop)
+-- opts.header  the header region, if the window has one
+-- opts.headerStyle
+--              "strip"    the tracker's title strip behind the header (the
+--                         card, the mock) - default
+--              "band"     a shade between two rods, for a header shorter
+--                         than the strip art (Quest Targets)
+--              "titlebar" a compact pop-up title bar (the step list)
+-- opts.key     band key for "band" headers
+-- opts.foot    false: no bottom strip (the card: its bottom edge is the XP
+--              bar)
+-- Returns: header art drawn (bool), the border key used.
+-- ---------------------------------------------------------------------------
+function theme.ApplyWindow(frame, opts)
+  opts = opts or {}
+  local popup = opts.role == "popup"
+  if popup then theme.ApplyPopupBackdrop(frame) else theme.ApplyBackdrop(frame) end
+  local border = popup and theme.PopupBorderKey() or theme.BorderKey(OXPFUI.db or {})
+  local header, style = opts.header, opts.headerStyle or "strip"
+  local drawn = false
+  if header then
+    if style == "band" then
+      drawn = theme.ApplyHeaderBand(frame, header, opts.key) ~= nil
+    elseif style == "titlebar" then
+      theme.ApplyWindowTitleBar(frame)
+      drawn = true
+    else
+      drawn = theme.ApplyTitleStrips(frame, header, { border = border, foot = opts.foot })
+    end
+  end
+  return drawn, border
 end
 
 OXPFUI.theme = theme

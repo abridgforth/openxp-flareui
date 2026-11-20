@@ -69,8 +69,9 @@ steppers, hover tooltips, and **Defaults / Cancel / Save** buttons.
 
 - **General:** Enable OXP-FUI skin, and *Follow FlareUI tracker style*.
 - **Windows:** one check box per OpenXP window.
-- **Appearance:** Font, Border style (Frames, Thick, Thin or None), Panel
-  opacity. These lock while the FlareUI style is being followed.
+- **Appearance:** Frame style (Blizzard, FlareUI or Custom), Font, Border
+  style (Custom only), Panel opacity (FlareUI and Custom). These lock while
+  the FlareUI style is being followed.
 - **FlareUI Quest Tracker:** the [tracker dock](#tracker-dock) settings.
 
 **Live changes.** Every change that does not need a reload shows at once
@@ -111,17 +112,31 @@ stays bronze in every scheme. FlareUI's saved settings are only read, never
 written. The style is re-read on every apply pass (an OpenXP refresh, a
 save, or `/reload`).
 
-## Section separators
+## Frame style
 
-Like FlareUI's tracker, the guide card draws Blizzard's own quest tracker
-art as separators: the title strip behind the card header (and the step
-list's title), and the tracker's rod with its end knobs between card
+Every window uses one frame-style model, FlareUI's own (its
+`ObjectiveTracker.lua`: `Build.FrameStyle`, `GetBorderFile`,
+`ApplyBackdrop`, `HeaderArtOn`):
+
+| Frame style | Background | Border | Header strips and separators |
+|---|---|---|---|
+| Blizzard | none | none | yes |
+| FlareUI | your opacity | FlareUI Thick | yes, knobs seated on the border, plus the bottom strip |
+| Custom (default, as in FlareUI) | your opacity | your border | none |
+
+When following FlareUI, its tracker's frame style is used; otherwise the
+**Frame style** setting. A strip therefore only ever appears with no border
+or with the Thick border it is shaped for, never on the rounded Frames or
+Thin borders. The header strip uses FlareUI's exact header band (8 px in
+from each side, 3 px down, 27 px tall), where its knobs fit the Thick
+border's curve.
+
+The separators are Blizzard's own quest tracker art: the title strip behind
+the card header, and the tracker's rod with its end knobs between card
 sections, on the line where OpenXP draws its own faint separator above
 "Up next" and under the history band (OpenXP's line steps aside
-meanwhile). Bordered FlareUI-style frames also get the bottom strip. The
-step progress line is repainted in the title colour (gold in the Blizzard
-scheme). When following FlareUI, its frame style decides whether
-separators are drawn; otherwise the **Section separators** check box does.
+meanwhile). The step progress line is repainted in the title colour (gold
+in the Blizzard scheme).
 
 Separators are drawn on the window itself, above its background, so an
 opaque background never covers them. On a framed window they follow
@@ -232,6 +247,18 @@ First run creates a venv with `lupa` under `build/venv`. Skin behaviour is
 verified against a stubbed WoW API and a fake OpenXP (no game needed); the
 build tests verify the produced addon folder. A report is written to
 `tests/output/report.txt`.
+
+## Adding a window
+
+Every window OXP-FUI draws or skins goes through one component,
+`theme.ApplyWindow(frame, opts)` in `Theme.lua`: it applies the frame style
+as one unit (background, border, header art, bottom strip), so all windows
+behave the same and a combination FlareUI never draws cannot happen. Pass
+`role = "popup"` for a pop-up (always a background and a frame), a `header`
+region and its `headerStyle` (`"strip"`, `"band"` or `"titlebar"`), and
+`foot = false` if the window's bottom edge is taken. Section headings use
+`theme.ApplySectionHeading`, dividers `theme.ApplySectionRule`. Don't call
+the backdrop or strip helpers directly from a skin.
 
 ## Adding a setting
 

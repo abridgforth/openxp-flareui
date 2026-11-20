@@ -147,7 +147,13 @@ local function headerText(header, openxp)
     zone:SetText(shown)
     zone.oxpfuiShown = shown
   end
-  if header.dot and header.dot.SetAlpha then header.dot:SetAlpha(0) end
+  -- The accent dot goes for good: hidden and see-through (OpenXP shows the
+  -- header frame, never the dot itself, so it stays hidden).
+  local dot = theme.RealFrame(header.dot)
+  if dot then
+    if dot.SetAlpha then dot:SetAlpha(0) end
+    if dot.Hide then dot:Hide() end
+  end
   local range = theme.RealFrame(header.range)
   if range and range.SetAlpha then range:SetAlpha(0) end
   zone:ClearAllPoints()
@@ -167,7 +173,6 @@ local function skinHeader(header, openxp)
   theme.ApplyText(header.range, "counter", "DIM")
   theme.ApplyText(header.step, "counter", "TITLE")
   headerText(header, openxp)
-  setVertex(header.dot, C.ACCENT)  -- the blue accent dot becomes amber
   -- header.stepBtn (the invisible hit area over "Step n / n" that opens the
   -- step list) is deliberately left as OpenXP draws it: no chrome.
 end
@@ -193,7 +198,7 @@ local function ensureDivider(cardFrame, header)
   t:ClearAllPoints()
   t:SetPoint("TOPLEFT", hf, "BOTTOMLEFT", 2, -1)
   t:SetPoint("TOPRIGHT", hf, "BOTTOMRIGHT", -2, -1)
-  local drawn = theme.ApplyTitleStrips(rf, hf, { foot = false })
+  local drawn = theme.ApplyWindow(rf, { header = hf, foot = false })
   if drawn then t:Hide() else t:Show() end
   return drawn
 end
@@ -475,12 +480,12 @@ local function skinStepList(list, openxp)
   -- A pop-up window: always a background and frame, and a Blizzard-style
   -- compact title bar (see theme.ApplyWindowTitleBar) instead of the
   -- tracker's taller title strip.
-  theme.ApplyPopupBackdrop(list)
   padListTop(list)
   theme.ApplyText(list.title, "header", "TITLE")
   local rl, rt = theme.RealFrame(list), theme.RealFrame(list.title)
   if rl and rt and rl.GetChildren then
-    local bar = theme.ApplyWindowTitleBar(rl)
+    theme.ApplyWindow(rl, { role = "popup", header = rt, headerStyle = "titlebar" })
+    local bar = rl.oxpfuiBands.titlebar
     -- Layout exception 5: the title is centred in the bar (OpenXP puts it at
     -- TOPLEFT 14,-9 under a 28px header of its own).
     rt:ClearAllPoints()

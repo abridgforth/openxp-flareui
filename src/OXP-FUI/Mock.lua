@@ -176,7 +176,6 @@ local function build()
   f:SetScript("OnDragStart", function(self) self:StartMoving() end)
   f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
   f:SetClampedToScreen(true)
-  theme.ApplyPopupBackdrop(f)
   f:Hide()
   tinsert(UISpecialFrames, "OXPFUIMock")
 
@@ -194,7 +193,7 @@ local function build()
   f.step:SetPoint("RIGHT", header, "RIGHT", -PAD + 1, 0)
   -- FlareUI's framed style: header strip seated on the top border, bottom
   -- strip on the bottom border (the window has a background and a frame).
-  theme.ApplyTitleStrips(f, header, { border = theme.PopupBorderKey() })
+  theme.ApplyWindow(f, { role = "popup", header = header })
   local progress = f:CreateTexture(nil, "OVERLAY")
   progress:SetHeight(2)
   progress:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 3, -3)

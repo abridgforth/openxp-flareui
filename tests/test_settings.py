@@ -419,9 +419,10 @@ class ColourSchemes(unittest.TestCase):
 
     def test_accent_chrome_stays_bronze_in_every_scheme(self):
         env = flare_env()
-        env.run(self.find_zone)
+        # The rested-XP wash is bronze chrome: it stays bronze under Blizzard's gold.
         self.assertEqual(tuple(round(v, 2) for v in env.run(
-            "local r,g,b,a = OXPFUI_DOT:GetVertexColor(); return r,g,b,a")), BRONZE4)
+            "local r,g,b = HARNESS.cardBits.xpStrip.rested:GetColorTexture(); return r,g,b")),
+            BRONZE4[:3])
 
     def test_text_sizes_follow_the_tracker_fonts(self):
         env = flare_env({"frameStyle": "blizzard", "headerFont": {"size": 15},
@@ -479,20 +480,50 @@ class Separators(unittest.TestCase):
         self.assertEqual(env.run("return OpenXPCard.oxpfuiDivider:IsShown()"), True)
         self.assertEqual(env.run("return OXPFUI_UPNEXT.sep:GetAlpha()"), 1)
 
-    def test_own_setting_when_not_following(self):
+    def test_own_frame_style_when_not_following(self):
         env = flare_env(follow=False)
-        self.assertIs(strip_shown(env, "OpenXPCard", "title"), True)  # default on
+        self.assertIs(strip_shown(env, "OpenXPCard", "title"), False)  # default Custom
         env.slash("/oxpfui")
-        env.run("OXPFUIPanel.separatorsBtn:Click()")  # live preview
-        self.assertIs(strip_shown(env, "OpenXPCard", "title"), False)
+        env.run("HARNESS.PickDropdown(OXPFUIPanel.frameStyleDropdown, 'FlareUI')")  # live preview
+        self.assertIs(strip_shown(env, "OpenXPCard", "title"), True)
+        self.assertIn("FlareUI-Thick.tga", env.run("return OpenXPCard.backdrop.edgeFile"))
+        self.assertEqual(env.run("return OXPFUIPanel.borderDropdown:IsEnabled()"), False)
         env.run("OXPFUIPanel.saveBtn:Click()")
-        self.assertEqual(env.run("return OXPFUIDB.separators"), False)
+        self.assertEqual(env.run("return OXPFUIDB.frameStyle"), "flareui")
         self.assertEqual(env.run("return HARNESS.reloads"), 0)
+
+    def test_header_strip_uses_flareuis_exact_band_geometry(self):
+        env = Env(db={"followFlareUI": False, "frameStyle": "flareui"})
+        env.boot()
+        self.assertEqual(env.run("""
+          local b = OpenXPCard.oxpfuiBands.title
+          local p1, r1, rp1, x1, y1 = b:GetPoint(1)
+          local p2, r2, rp2, x2, y2 = b:GetPoint(2)
+          return p1, x1, y1, p2, x2, y2, b:GetHeight(), r1 == OpenXPCard
+        """), ("TOPLEFT", 8, -3, "TOPRIGHT", -8, -3, 27, True))
+        # Knobs onto the Thick border's curve (FlareUI: ART_TITLE_DOWN).
+        self.assertEqual(env.run(
+            "local _,_,_,_,y = OpenXPCard.oxpfuiBands.title.oxpfuiStrip.L:GetPoint(1); return y"), 0.5)
+
+    def test_strips_never_sit_on_a_rounded_frames_or_thin_border(self):
+        for border in ("Frames", "Thin"):
+            env = Env(db={"followFlareUI": False, "frameStyle": "custom", "borderStyle": border})
+            env.boot()
+            self.assertIs(strip_shown(env, "OpenXPCard", "title"), False, border)
+
+    def test_old_separator_setting_migrates_to_a_frame_style(self):
+        for saved, want in (({"separators": False, "borderStyle": "Thin"}, "custom"),
+                            ({"separators": True, "borderStyle": "None"}, "blizzard"),
+                            ({"separators": True, "borderStyle": "Frames"}, "flareui")):
+            env = Env(db=saved)
+            env.boot()
+            self.assertEqual(env.run("return OXPFUIDB.frameStyle"), want, saved)
+            self.assertIsNone(env.run("return OXPFUIDB.separators"))
 
     def test_separator_switch_locks_while_following(self):
         env = flare_env()
         env.slash("/oxpfui")
-        self.assertEqual(env.run("return OXPFUIPanel.separatorsBtn:IsEnabled()"), False)
+        self.assertEqual(env.run("return OXPFUIPanel.frameStyleDropdown:IsEnabled()"), False)
 
     def test_strips_are_skipped_quietly_without_atlas_info(self):
         env = Env(flareui=True, load_addon=False, db={"followFlareUI": False})
@@ -542,9 +573,9 @@ class PinQuestTargets(unittest.TestCase):
 
     def test_beside_the_guide_follows_the_step_list_side(self):
         env = self._env("side", card_left=100)   # card on the left: right side
-        self.assertEqual(self._anchor(env), ("TOPLEFT", "card", "TOPRIGHT", 6, -8))
+        self.assertEqual(self._anchor(env), ("TOPLEFT", "card", "TOPRIGHT", 6, 0))
         env2 = self._env("side", card_left=900)  # card on the right: left side
-        self.assertEqual(self._anchor(env2), ("TOPRIGHT", "card", "TOPLEFT", -6, -8))
+        self.assertEqual(self._anchor(env2), ("TOPRIGHT", "card", "TOPLEFT", -6, 0))
 
     def test_moves_under_the_step_list_and_back(self):
         env = self._env("below")
@@ -605,6 +636,7 @@ class TitleCaseHeadings(unittest.TestCase):
         self.assertEqual(env.run(zone), "Fake Guide |cFF8C8C8C(1–10)|r")
         # No accent dot; OpenXP's separate range label is hidden.
         self.assertEqual(env.run("return HARNESS.cardBits.header.dot:GetAlpha()"), 0)
+        self.assertIs(env.run("return HARNESS.cardBits.header.dot:IsShown()"), False)
         self.assertEqual(env.run("return HARNESS.cardBits.header.range:GetAlpha()"), 0)
         # A new guide: OpenXP refreshes its header, the text follows.
         env.run("HARNESS.openxp.currentGuide.displayname = \"48-52 Un'Goro Crater\"; "
@@ -658,7 +690,7 @@ class QuestTargetsContainer(unittest.TestCase):
     """Quest Targets in the tracker's container look."""
 
     def test_header_band_title_case_and_no_wash(self):
-        env = Env()
+        env = Env(db={"frameStyle": "flareui"})
         env.boot()
         self.assertEqual(env.run("return RXPTargetFrame_title.text:GetText()"), "Quest Targets")
         bands = "RXPTargetFrame.oxpfuiBands"
@@ -672,7 +704,7 @@ class QuestTargetsContainer(unittest.TestCase):
         """), ("TOP", True, "BOTTOM"))
 
     def test_section_labels_title_case_on_a_fading_shade(self):
-        env = Env()
+        env = Env(db={"frameStyle": "flareui"})
         env.boot()
         self.assertEqual(env.run("return RXPTargetFrame.sections.enemy:GetText()"), "Kill")
         self.assertEqual(env.run("return RXPTargetFrame.sections.friendly:GetText()"), "Talk to")
@@ -684,7 +716,7 @@ class QuestTargetsContainer(unittest.TestCase):
 
 class StripLayering(unittest.TestCase):
     def test_strip_art_is_drawn_on_the_window_above_its_background(self):
-        env = Env()
+        env = Env(db={"frameStyle": "flareui"})
         env.boot()
         env.slash("/oxpfui mock")
         res = env.run("""
@@ -695,7 +727,7 @@ class StripLayering(unittest.TestCase):
         self.assertEqual(res, (True, "ARTWORK"))
 
     def test_framed_popup_gets_strips_seated_on_the_border_and_a_bottom_strip(self):
-        env = Env(db={"followFlareUI": False, "borderStyle": "None"})
+        env = Env(db={"followFlareUI": False, "frameStyle": "blizzard"})
         env.boot()
         env.slash("/oxpfui mock")
         self.assertIn("FlareUI-Thick.tga", env.run("return OXPFUIMock.backdrop.edgeFile"))

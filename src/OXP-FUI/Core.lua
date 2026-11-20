@@ -72,6 +72,19 @@ function OXPFUI.InitDB()
   if type(_G.OXPFUIDB) ~= "table" then _G.OXPFUIDB = {} end
   local db = _G.OXPFUIDB
   if type(db.windows) ~= "table" then db.windows = {} end
+  -- 0.6 -> 0.7: "Section separators" + border became one Frame Style.
+  if db.separators ~= nil then
+    if db.frameStyle == nil then
+      if db.separators == false then
+        db.frameStyle = "custom"
+      elseif db.borderStyle == "None" then
+        db.frameStyle = "blizzard"
+      else
+        db.frameStyle = "flareui"
+      end
+    end
+    db.separators = nil
+  end
   OXPFUI.Settings.FillMissing(db)
   -- savedDb is the SavedVariables table; OXPFUI.db is what the skins read.
   -- They are the same table except while the settings window previews

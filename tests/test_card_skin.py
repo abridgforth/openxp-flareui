@@ -150,7 +150,8 @@ class CardPalette(unittest.TestCase):
         env = Env()
         env.boot()
         bits = "HARNESS.cardBits"
-        self.assertEqual(vertex_of(env, f"{bits}.header.dot"), ZONE)
+        # The header's accent dot is hidden (the header reads "Zone (range)").
+        self.assertIs(env.run(f"return {bits}.header.dot:IsShown()"), False)
         # The step progress fill is a solid colour texture (no vertex colour
         # to match): it is repainted in the title colour, gold by default.
         self.assertEqual(env.run(f"return {bits}.progress:GetColorTexture()"),
@@ -801,20 +802,20 @@ class ProgressUnderStrip(unittest.TestCase):
         return env.run("local _, _, _, _, y = OpenXPCard.oxpfuiTrack:GetPoint(1); return y")
 
     def test_progress_line_drops_below_the_title_strip(self):
-        env = Env()  # separators on by default
+        env = Env(db={"frameStyle": "flareui"})
         env.boot()
         self.assertEqual(self._drop(env), -3)
         self.assertEqual(env.run("local _, _, _, _, y = HARNESS.cardBits.progress:GetPoint(1); return y"), -3)
 
     def test_progress_line_stays_without_strips(self):
-        env = Env(db={"separators": False, "followFlareUI": False})
+        env = Env(db={"frameStyle": "custom", "followFlareUI": False})
         env.boot()
         self.assertEqual(self._drop(env), 0)
 
 
 class SectionRules(unittest.TestCase):
     def test_up_next_rule_sits_on_openxps_separator_line(self):
-        env = Env()
+        env = Env(db={"frameStyle": "flareui"})
         env.boot()
         band = env.run("""
           local u = HARNESS.cardBits.upNext
@@ -826,7 +827,7 @@ class SectionRules(unittest.TestCase):
         self.assertEqual(env.run("return HARNESS.cardBits.upNext.sep:GetAlpha()"), 0)
 
     def test_history_rule_sits_at_the_end_of_the_history_band(self):
-        env = Env()
+        env = Env(db={"frameStyle": "flareui"})
         env.boot()
         self.assertEqual(env.run("""
           local h = HARNESS.cardBits.hist
@@ -837,7 +838,7 @@ class SectionRules(unittest.TestCase):
 
 class Toolbar(unittest.TestCase):
     def test_wash_hidden_and_top_line_becomes_the_section_rule(self):
-        env = Env()
+        env = Env(db={"frameStyle": "flareui"})
         env.boot()
         bar = "HARNESS.cardBits.bar"
         self.assertEqual(env.run(f"return {bar}.bg:GetAlpha()"), 0)
@@ -845,7 +846,7 @@ class Toolbar(unittest.TestCase):
         self.assertEqual(env.run(f"local _,_,_,a = {bar}.line:GetColorTexture(); return a"), 0)
 
     def test_without_separators_the_top_line_is_faint_bronze(self):
-        env = Env(db={"separators": False, "followFlareUI": False})
+        env = Env(db={"frameStyle": "custom", "followFlareUI": False})
         env.boot()
         self.assertEqual(env.run("return HARNESS.cardBits.bar.line:GetColorTexture()"),
                          (0.8, 0.6, 0.34, 0.35))
