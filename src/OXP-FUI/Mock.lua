@@ -192,7 +192,9 @@ local function build()
   f.zone:SetPoint("LEFT", header, "LEFT", PAD, 0)
   f.step = text(header, "counter", "TITLE", ("Step %d / %d"):format(SAMPLE.step, SAMPLE.total))
   f.step:SetPoint("RIGHT", header, "RIGHT", -PAD + 1, 0)
-  theme.ApplyTitleStrips(f, header)
+  -- FlareUI's framed style: header strip seated on the top border, bottom
+  -- strip on the bottom border (the window has a background and a frame).
+  theme.ApplyTitleStrips(f, header, { border = theme.PopupBorderKey() })
   local progress = f:CreateTexture(nil, "OVERLAY")
   progress:SetHeight(2)
   progress:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 3, -3)
@@ -200,7 +202,7 @@ local function build()
   local t = theme.C.TITLE
   progress:SetColorTexture(t[1], t[2], t[3], 1)
 
-  local y = -44
+  local y = -46
   y = stepBlock(f, SAMPLE.current, y) - 8
   hairline(f, y)
   y = y - 10
@@ -214,7 +216,7 @@ local function build()
   y = y - (nextLine:GetStringHeight() or 12) - 14
   local note = text(f, "counter", "DIM", "Mock-up only. /oxpfui mock or Escape closes it.", WIDTH - PAD * 2)
   note:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, y)
-  y = y - (note:GetStringHeight() or 11) - 10
+  y = y - (note:GetStringHeight() or 11) - 16 -- room for the bottom strip
   f:SetHeight(-y)
   return f
 end

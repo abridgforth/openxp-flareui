@@ -466,10 +466,10 @@ class Separators(unittest.TestCase):
         self.assertEqual(env.run("return OpenXPCard.oxpfuiBands.title.oxpfuiStrip.L:GetTexture()"),
                          "Interface\\QuestFrame\\ObjectiveTracker")
 
-    def test_bordered_flareui_style_adds_the_bottom_strip(self):
+    def test_card_never_gets_a_bottom_strip_over_its_xp_bar(self):
         env = flare_env({"frameStyle": "flareui"})
         self.assertIs(strip_shown(env, "OpenXPCard", "title"), True)
-        self.assertIs(strip_shown(env, "OpenXPCard", "foot"), True)
+        self.assertIs(strip_shown(env, "OpenXPCard", "foot"), False)
 
     def test_custom_style_has_no_strips(self):
         env = flare_env({"frameStyle": "custom"})
@@ -680,6 +680,28 @@ class QuestTargetsContainer(unittest.TestCase):
         # A hidden section hides its shade too.
         env.run("RXPTargetFrame.sections.friendly:Hide(); OXPFUI.Reapply('t')")
         self.assertIs(env.run("return RXPTargetFrame.oxpfuiBands.targetsSection_friendly:IsShown()"), False)
+
+
+class StripLayering(unittest.TestCase):
+    def test_strip_art_is_drawn_on_the_window_above_its_background(self):
+        env = Env()
+        env.boot()
+        env.slash("/oxpfui mock")
+        res = env.run("""
+          local b = OXPFUIMock.oxpfuiBands.title
+          local L = b.oxpfuiStrip.L
+          return L:GetParent() == OXPFUIMock, L:GetDrawLayer()
+        """)
+        self.assertEqual(res, (True, "ARTWORK"))
+
+    def test_framed_popup_gets_strips_seated_on_the_border_and_a_bottom_strip(self):
+        env = Env(db={"followFlareUI": False, "borderStyle": "None"})
+        env.boot()
+        env.slash("/oxpfui mock")
+        self.assertIn("FlareUI-Thick.tga", env.run("return OXPFUIMock.backdrop.edgeFile"))
+        self.assertIs(strip_shown(env, "OXPFUIMock", "foot"), True)
+        self.assertEqual(env.run(
+            "local _,_,_,_,y = OXPFUIMock.oxpfuiBands.title.oxpfuiStrip.L:GetPoint(1); return y"), 0.5)
 
 
 class StepMock(unittest.TestCase):

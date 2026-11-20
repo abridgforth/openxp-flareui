@@ -435,10 +435,23 @@ function theme.Band(parent, key)
       band:SetFrameLevel(parent:GetFrameLevel() or 0)
     end
     if band.EnableMouse then band:EnableMouse(false) end
+    band.oxpfuiHost = parent
     parent.oxpfuiBands[key] = band
   end
   return band
 end
+
+-- Bands only place things; the art itself is drawn on the band's host (the
+-- window), in its ARTWORK layer: above the window's own background and
+-- border (BACKGROUND / BORDER), below its child frames and their text. A
+-- separate frame at the window's level would sort unpredictably against the
+-- window's background, which then covers it when it is opaque.
+-- Sublevels: fills -4, strips -2, hairlines -1.
+local function art(band, sub)
+  local host = band.oxpfuiHost or band
+  return host:CreateTexture(nil, "ARTWORK", nil, sub)
+end
+theme.BandTexture = art
 
 function theme.HideStrip(band)
   local s = band and band.oxpfuiStrip
@@ -455,7 +468,7 @@ function theme.PlaceStrip(band, atlas, leftOut, rightOut, cut, dy)
   if not s then
     s = {}
     for _, part in ipairs({ "L", "M", "R" }) do
-      local tex = band:CreateTexture(nil, "BACKGROUND", nil, -1)
+      local tex = art(band, -2)
       if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(false) end
       if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
       s[part] = tex
@@ -496,7 +509,13 @@ end
 -- and bottom), spanning `frame` like FlareUI's tracker header, plus the
 -- bottom strip along the frame's foot in the FlareUI style. Returns whether
 -- the title strip is drawn.
-function theme.ApplyTitleStrips(frame, header)
+-- opts.border: the border key the frame is drawn with (default: the
+-- theme's). FlareUI's rule: a strip on a framed window sits with its knobs
+-- on the top border, and the window gets the bottom strip on its bottom
+-- border too; a borderless window has neither seat nor bottom strip.
+-- opts.foot = false: no bottom strip (the guide card, whose bottom edge
+-- carries OpenXP's XP bar).
+function theme.ApplyTitleStrips(frame, header, opts)
   local A = theme.ART
   local band = theme.Band(frame, "title")
   local foot = theme.Band(frame, "foot")
@@ -516,9 +535,10 @@ function theme.ApplyTitleStrips(frame, header)
   local reach = theme.ArtReach(A.TITLE)
   local leftOut = reach - A.KNOB_IN + A.TITLE_LEFT
   local rightOut = reach + A.TITLE_RIGHT - A.KNOB_IN - A.TITLE_LEFT
-  local bordered = theme.BorderKey(OXPFUI.db or {}) ~= "None"
+  local borderKey = (opts and opts.border) or theme.BorderKey(OXPFUI.db or {})
+  local bordered = borderKey ~= "None"
   local drawn = theme.PlaceStrip(band, A.TITLE, leftOut, rightOut, nil, bordered and A.TITLE_DOWN or nil)
-  if drawn and theme.FootOn() then
+  if drawn and bordered and not (opts and opts.foot == false) then
     foot:ClearAllPoints()
     foot:SetHeight(1)
     foot:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", A.HEADER_INSET, A.FOOT_Y - 0.5)
@@ -628,12 +648,20 @@ end
 theme.TITLE_BAR_H = 24       -- = UIPanelCloseButton's 24px
 theme.POPUP_MIN_OPACITY = 0.85
 
+-- The border a pop-up window is drawn with: the theme's, or, when that is
+-- None (a borderless tracker style), FlareUI's own framed style's Thick
+-- border (FlareUI ObjectiveTracker.lua C.FLAREUI_BORDER).
+function theme.PopupBorderKey()
+  local key = theme.BorderKey(OXPFUI.db or {})
+  if key == "None" then key = "Thick" end
+  return key
+end
+
 -- Backdrop for a pop-up window: the theme's recipe, but never see-through
--- and never frameless (a "None" border falls back to Thin).
+-- and never frameless.
 function theme.ApplyPopupBackdrop(frame)
   local db = OXPFUI.db or {}
-  local key = theme.BorderKey(db)
-  if key == "None" then key = "Thin" end
+  local key = theme.PopupBorderKey()
   local border = theme.BORDERS[key]
   local opacity = math.max(panelOpacity(db), theme.POPUP_MIN_OPACITY)
   frame:SetBackdrop({
@@ -658,7 +686,7 @@ function theme.ApplyWindowTitleBar(frame)
   bar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
   bar:SetHeight(theme.TITLE_BAR_H)
   if not bar.fill then
-    bar.fill = bar:CreateTexture(nil, "BACKGROUND", nil, -2)
+    bar.fill = art(bar, -4)
     bar.fill:SetPoint("TOPLEFT", bar, "TOPLEFT", 3, -3)
     bar.fill:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -3, 0)
   end
@@ -674,7 +702,7 @@ function theme.ApplyWindowTitleBar(frame)
     -- no atlas: a plain bronze hairline
     theme.HideStrip(rule)
     if not rule.line then
-      rule.line = rule:CreateTexture(nil, "ARTWORK")
+      rule.line = art(rule, -1)
       rule.line:SetAllPoints(rule)
     end
     local c = theme.C.ACCENT
@@ -732,7 +760,7 @@ local function rod(frame, region, edge, key, inset)
   local reach = theme.ArtReach(A.TITLE)
   local drawn = theme.PlaceStrip(band, A.TITLE, reach, reach, A.FOOT_BAND)
   if not band.line then
-    band.line = band:CreateTexture(nil, "ARTWORK")
+    band.line = art(band, -1)
     band.line:SetAllPoints(band)
   end
   local c = theme.C.ACCENT
@@ -753,7 +781,7 @@ function theme.ApplyHeaderBand(frame, header, key)
   band:SetPoint("LEFT", frame, "LEFT", 2, 0)
   band:SetPoint("RIGHT", frame, "RIGHT", -2, 0)
   if not band.fill then
-    band.fill = band:CreateTexture(nil, "BACKGROUND", nil, -2)
+    band.fill = art(band, -4)
     band.fill:SetAllPoints(band)
   end
   band.fill:SetColorTexture(0, 0, 0, 0.35)
@@ -769,7 +797,11 @@ end
 function theme.ApplySectionHeading(frame, label, key)
   local band = theme.Band(frame, key)
   local shown = label and label.IsShown and label:IsShown()
-  if not shown then band:Hide() return false end
+  if not shown then
+    band:Hide()
+    if band.fill then band.fill:Hide(); band.line:Hide() end
+    return false
+  end
   band:Show()
   band:ClearAllPoints()
   band:SetPoint("TOP", label, "TOP", 0, 3)
@@ -777,13 +809,14 @@ function theme.ApplySectionHeading(frame, label, key)
   band:SetPoint("LEFT", frame, "LEFT", 3, 0)
   band:SetPoint("RIGHT", frame, "RIGHT", -3, 0)
   if not band.fill then
-    band.fill = band:CreateTexture(nil, "BACKGROUND", nil, -2)
+    band.fill = art(band, -4)
     band.fill:SetAllPoints(band)
-    band.line = band:CreateTexture(nil, "ARTWORK")
+    band.line = art(band, -1)
     band.line:SetHeight(1)
     band.line:SetPoint("BOTTOMLEFT", band, "BOTTOMLEFT")
     band.line:SetPoint("BOTTOMRIGHT", band, "BOTTOMRIGHT")
   end
+  band.fill:Show(); band.line:Show()
   fade(band.fill, 0.5, 0)
   local c = theme.C.ACCENT
   band.line:SetColorTexture(c[1], c[2], c[3], 1)

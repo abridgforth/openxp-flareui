@@ -193,7 +193,7 @@ local function ensureDivider(cardFrame, header)
   t:ClearAllPoints()
   t:SetPoint("TOPLEFT", hf, "BOTTOMLEFT", 2, -1)
   t:SetPoint("TOPRIGHT", hf, "BOTTOMRIGHT", -2, -1)
-  local drawn = theme.ApplyTitleStrips(rf, hf)
+  local drawn = theme.ApplyTitleStrips(rf, hf, { foot = false })
   if drawn then t:Hide() else t:Show() end
   return drawn
 end

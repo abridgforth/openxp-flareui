@@ -123,6 +123,13 @@ step progress line is repainted in the title colour (gold in the Blizzard
 scheme). When following FlareUI, its frame style decides whether
 separators are drawn; otherwise the **Section separators** check box does.
 
+Separators are drawn on the window itself, above its background, so an
+opaque background never covers them. On a framed window they follow
+FlareUI's framed style: the header strip's end knobs sit on the top border,
+and the window gets the bottom strip on its bottom border (except the guide
+card, whose bottom edge carries OpenXP's XP bar). Pop-up windows with no
+border of their own (a borderless tracker style) use FlareUI's Thick frame.
+
 The step list is a pop-up window, so it uses Blizzard's window anatomy
 rather than the tracker's: a compact 24 px title bar with the title centred
 in it and the tracker's rod along its bottom, and Blizzard's red close

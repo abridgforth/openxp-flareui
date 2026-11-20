@@ -782,7 +782,8 @@ class StepListWindow(unittest.TestCase):
         env.boot()
         env.run("HARNESS.openxp.card.ToggleStepList()")
         self.assertEqual(env.run("local _,_,_,a = HARNESS.cardBits.list:GetBackdropColor(); return a"), 0.85)
-        self.assertIn("FlareUI-Thin.tga", env.run("return HARNESS.cardBits.list.backdrop.edgeFile"))
+        # FlareUI's framed style: its Thick border.
+        self.assertIn("FlareUI-Thick.tga", env.run("return HARNESS.cardBits.list.backdrop.edgeFile"))
         # The card itself still follows the borderless, see-through setting.
         self.assertEqual(env.run("local _,_,_,a = OpenXPCard:GetBackdropColor(); return a"), 0)
 
