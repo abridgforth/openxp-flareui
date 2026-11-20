@@ -564,6 +564,57 @@ class QuestTargetsWindow(unittest.TestCase):
         self.assertEqual(self._y(env, "RXPTargetFrame_EnemyButton1"), -44 - 10)
         self.assertEqual(env.run("return RXPTargetFrame:GetHeight()"), content + 10)
 
+    def test_rows_never_drift_onto_each_other(self):
+        # In game, GetPoint can return an offset a hair off what was set;
+        # the layout must not depend on reading it back.
+        env = Env()
+        env.boot()
+        env.run("""
+          for _, n in ipairs({ 'RXPTargetFrame_EnemyButton1', 'RXPTargetFrame_EnemyButton2' }) do
+            local f = _G[n]; local gp = f.GetPoint
+            f.GetPoint = function(self, i)
+              local a, b, c, x, y = gp(self, i); return a, b, c, x, y and (y + 0.0003)
+            end
+          end
+        """)
+        for _ in range(4):
+            env.run("HARNESS.openxp.targeting:UpdateTargetFrame()")
+            env.run("OXPFUI.Reapply('t'); OXPFUI.Reapply('t')")
+        y1 = env.run("local _,_,_,_,y = RXPTargetFrame_EnemyButton1:GetPoint(1); return y")
+        y2 = env.run("local _,_,_,_,y = RXPTargetFrame_EnemyButton2:GetPoint(1); return y")
+        self.assertAlmostEqual(y1, -54, places=2)
+        self.assertAlmostEqual(y1 - y2, 24, places=2)
+        self.assertAlmostEqual(self._y(env, "RXPTargetFrame.sections.enemy"), -38, places=2)
+
+    def test_fewer_targets_relayout_from_openxps_rows(self):
+        env = Env()
+        env.boot()
+        env.run("HARNESS.targetCounts = { enemy = 2, friendly = 0 }; "
+                "HARNESS.openxp.targeting:UpdateTargetFrame()")
+        self.assertIs(env.run("return RXPTargetFrame.sections.friendly:IsShown()"), False)
+        # label 16 + 2 rows + gap 4, from 28 + 10; height y + 2
+        self.assertEqual(env.run("return RXPTargetFrame:GetHeight()"), 38 + 16 + 48 + 4 + 2)
+        env.run("OXPFUI.Reapply('t'); OXPFUI.Reapply('t')")
+        self.assertEqual(env.run("return RXPTargetFrame:GetHeight()"), 38 + 16 + 48 + 4 + 2)
+
+    def test_unfold_gives_back_only_what_openxp_shows(self):
+        env = Env()
+        env.boot()
+        btn = "RXPTargetFrame_title.oxpfuiCollapse"
+        env.run(f"{btn}:GetScript('OnClick')({btn})")
+        # OpenXP rebuilds while folded, now with one enemy and no NPCs.
+        env.run("HARNESS.targetCounts = { enemy = 1, friendly = 0 }; "
+                "HARNESS.openxp.targeting:UpdateTargetFrame()")
+        self.assertIs(env.run("return RXPTargetFrame_EnemyButton1:IsShown()"), False)
+        # Unfold in combat: OpenXP cannot rebuild, OXP-FUI gives back its set.
+        env.run("HARNESS.inCombat = true")
+        env.run(f"{btn}:GetScript('OnClick')({btn})")
+        env.run("HARNESS.inCombat = false; HARNESS.FireEvent('PLAYER_REGEN_ENABLED')")
+        self.assertEqual(env.run("return RXPTargetFrame_EnemyButton1:IsShown(), "
+                                 "RXPTargetFrame_EnemyButton2:IsShown(), "
+                                 "RXPTargetFrame_FriendlyButton1:IsShown()"),
+                         (True, False, False))
+
     def test_collapse_button_folds_and_unfolds(self):
         env = Env()
         env.boot()

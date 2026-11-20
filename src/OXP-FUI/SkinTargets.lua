@@ -57,21 +57,46 @@ local A = theme.ART
 local SHIFT = 10                     -- OpenXP's content starts at 28; the strip ends at 30
 local COLLAPSED_H = A.HEADER + 4     -- the strip and 3px under it, as the tracker minimized
 
--- Move a region down by SHIFT once per OpenXP layout: OpenXP re-anchors on
--- every rebuild (ResizeTargetsFrame), a re-apply alone must not move it again.
-local function shiftDown(region)
-  if not (region and region.GetPoint and region.GetNumPoints) then return end
-  local n = region:GetNumPoints()
-  if n == 0 then return end
-  local pts = {}
-  for i = 1, n do pts[i] = { region:GetPoint(i) } end
-  local first = pts[1][5]
-  if region.oxpfuiShiftY ~= nil and first == region.oxpfuiShiftY then return end
-  region:ClearAllPoints()
-  for _, p in ipairs(pts) do
-    region:SetPoint(p[1], p[2], p[3], p[4] or 0, (p[5] or 0) - SHIFT)
+-- OpenXP's own geometry (Targeting.lua ResizeTargetsFrame, 1.3.66): first
+-- label at OXP_HEAD_H + 4; label 16, rows 24 each, 4 after each section;
+-- window height y + 2.
+local HEAD_Y, LABEL_H, ROW_H, SECTION_GAP = 24 + 4, 16, 24, 4
+local SECTIONS = {
+  { key = "enemy", list = "enemyTargetButtons" },
+  { key = "friendly", list = "friendlyTargetButtons" },
+}
+
+-- Lay the sections out the way ResizeTargetsFrame does, SHIFT lower: from
+-- what OpenXP shows (its rows in list order), never from where things are
+-- now, so any number of re-applies lands in the same place. (Moving the
+-- current anchors down "once" broke in game: rows drifted on top of each
+-- other.)
+local function layoutContent(rf, tf)
+  local y = HEAD_Y + SHIFT
+  for _, sec in ipairs(SECTIONS) do
+    local label = theme.RealFrame(tf.sections and tf.sections[sec.key])
+    local shown = {}
+    for _, raw in ipairs(type(tf[sec.list]) == "table" and tf[sec.list] or {}) do
+      local b = theme.RealFrame(raw)
+      if b and b.IsShown and b:IsShown() then shown[#shown + 1] = b end
+    end
+    if #shown > 0 then
+      if label then
+        label:ClearAllPoints()
+        label:SetPoint("TOPLEFT", rf, "TOPLEFT", 11, -y)
+      end
+      y = y + LABEL_H
+      for _, b in ipairs(shown) do
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", rf, "TOPLEFT", 1, -y)
+        y = y + ROW_H
+      end
+      y = y + SECTION_GAP
+    end
   end
-  region.oxpfuiShiftY = (first or 0) - SHIFT
+  local h = y + 2
+  local cur = rf:GetHeight()
+  if not cur or math.abs(cur - h) >= 0.5 then rf:SetHeight(h) end
 end
 
 local function collapsed() return (OXPFUI.db or {}).targetsCollapsed == true end
@@ -144,24 +169,28 @@ local function layoutWindow(rf, rt, tf)
     hint:SetPoint("RIGHT", btn, "LEFT", -6, 0)
   end
 
-  local list = rows(tf)
+  -- What OpenXP shows is remembered while folded (it decides which rows
+  -- and labels show; a fold only hides them), and given back on unfold.
+  local regions = rows(tf)
+  for _, fs in pairs(tf.sections or {}) do regions[#regions + 1] = theme.RealFrame(fs) end
   if collapsed() then
-    for _, fs in pairs(tf.sections or {}) do
-      local r = theme.RealFrame(fs)
-      if r and r.Hide then r:Hide() end
+    -- Anything showing means OpenXP just rebuilt: its set replaces ours.
+    local now = {}
+    for _, r in ipairs(regions) do
+      if r and r.IsShown and r:IsShown() then now[#now + 1] = r end
     end
-    for _, b in ipairs(list) do if b.Hide then b:Hide() end end
-    rf:SetHeight(COLLAPSED_H)
-    rf.oxpfuiShiftH = nil
+    if #now > 0 or not rf.oxpfuiFolded then
+      rf.oxpfuiFolded = {}
+      for _, r in ipairs(now) do rf.oxpfuiFolded[r] = true; r:Hide() end
+    end
+    if math.abs((rf:GetHeight() or 0) - COLLAPSED_H) >= 0.5 then rf:SetHeight(COLLAPSED_H) end
     return
   end
-  for _, fs in pairs(tf.sections or {}) do shiftDown(theme.RealFrame(fs)) end
-  for _, b in ipairs(list) do shiftDown(b) end
-  local h = rf:GetHeight() or 0
-  if rf.oxpfuiShiftH == nil or math.abs(h - rf.oxpfuiShiftH) >= 0.5 then
-    rf:SetHeight(h + SHIFT)
-    rf.oxpfuiShiftH = h + SHIFT
+  if rf.oxpfuiFolded then
+    for r in pairs(rf.oxpfuiFolded) do r:Show() end
+    rf.oxpfuiFolded = nil
   end
+  layoutContent(rf, tf)
 end
 
 OXPFUI.RegisterSkin{

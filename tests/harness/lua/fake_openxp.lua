@@ -633,22 +633,32 @@ function HARNESS.LayoutTargets()
   tfTitle.text:SetPoint("LEFT", tfTitle, "LEFT", 10, 0)
   tfTitle.keyHint:ClearAllPoints()
   tfTitle.keyHint:SetPoint("RIGHT", tfTitle, "RIGHT", -10, 0)
+  -- HARNESS.targetCounts: how many rows of each kind OpenXP shows
+  -- (UpdateTargetFrame shows those and hides the rest, a section with none
+  -- hides its label).
+  local counts = HARNESS.targetCounts or {}
   local y = 24 + 4
   for _, pair in ipairs({ { "enemy", tf.enemyTargetButtons }, { "friendly", tf.friendlyTargetButtons } }) do
     local label = tf.sections[pair[1]]
-    label:ClearAllPoints()
-    label:SetPoint("TOPLEFT", tf, "TOPLEFT", 11, -y)
-    label:Show()
-    y = y + 16
-    for _, btn in ipairs(pair[2]) do
-      btn:ClearAllPoints()
-      btn:SetPoint("TOPLEFT", tf, "TOPLEFT", 1, -y)
-      btn:SetPoint("TOPRIGHT", tf, "TOPRIGHT", -1, -y)
-      btn:SetHeight(24)
-      btn:Show()
-      y = y + 24
+    local count = counts[pair[1]] or #pair[2]
+    for i, btn in ipairs(pair[2]) do if i > count then btn:Hide() end end
+    if count == 0 then
+      label:Hide()
+    else
+      label:ClearAllPoints()
+      label:SetPoint("TOPLEFT", tf, "TOPLEFT", 11, -y)
+      label:Show()
+      y = y + 16
+      for i = 1, count do
+        local btn = pair[2][i]
+        btn:ClearAllPoints()
+        btn:SetPoint("TOPLEFT", tf, "TOPLEFT", 1, -y)
+        btn:SetHeight(24)
+        btn:Show()
+        y = y + 24
+      end
+      y = y + 4
     end
-    y = y + 4
   end
   tf:SetSize(200, y + 2)
   HARNESS.targetsContent = y + 2
