@@ -136,6 +136,11 @@ Settings.Define { key = "attachSide", kind = "choice", default = "bottom",
 Settings.Define { key = "attachPadding", kind = "range", default = 8, min = 0, max = 40, step = 1, reload = false }
 Settings.Define { key = "matchTrackerWidth", kind = "toggle", default = false, reload = false }
 
+-- Pin OpenXP's Quest Targets window to the guide (TargetsDock.lua):
+-- off | below | side. Re-anchors live (a move in combat waits for its end).
+Settings.Define { key = "pinTargets", kind = "choice", default = "off",
+                  choices = { "off", "below", "side" }, reload = false }
+
 -- -------------------------------------------------------------------------
 -- Defaults, drafts, commit
 -- -------------------------------------------------------------------------
@@ -208,6 +213,7 @@ function Settings.ApplyLive(reason)
   -- Reapply already updates the dock when the engine is ready; this covers
   -- the dock before login or with OpenXP missing.
   if OXPFUI.Dock and OXPFUI.Dock.Update then OXPFUI.Dock.Update(reason) end
+  if OXPFUI.TargetsDock and OXPFUI.TargetsDock.Update then OXPFUI.TargetsDock.Update(reason) end
 end
 
 -- -------------------------------------------------------------------------

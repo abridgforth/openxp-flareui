@@ -91,8 +91,21 @@ local function baseMethods(kind)
       return n
     end,
 
-    Show = function(self) record(self, "Show"); self.__shown = true end,
-    Hide = function(self) record(self, "Hide"); self.__shown = false end,
+    -- Real client: OnShow / OnHide run when the shown state changes.
+    Show = function(self)
+      record(self, "Show")
+      local was = self.__shown ~= false
+      self.__shown = true
+      local fn = not was and self.__scripts and self.__scripts["OnShow"]
+      if fn then fn(self) end
+    end,
+    Hide = function(self)
+      record(self, "Hide")
+      local was = self.__shown ~= false
+      self.__shown = false
+      local fn = was and self.__scripts and self.__scripts["OnHide"]
+      if fn then fn(self) end
+    end,
     IsShown = function(self) return self.__shown ~= false end,
     IsVisible = function(self) return self.__shown ~= false end,
 

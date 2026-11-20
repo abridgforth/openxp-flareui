@@ -23,20 +23,7 @@ function HARNESS.CreateFlareUITracker()
   holder:SetWidth(250)
   holder:SetHeight(166)
   holder:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -20, -300)
-  -- Real client semantics the harness base lacks.
-  local origShow, origHide = holder.Show, holder.Hide
-  holder.Show = function(self)
-    if self:IsShown() then return end
-    origShow(self)
-    local fn = self:GetScript("OnShow")
-    if fn then fn(self) end
-  end
-  holder.Hide = function(self)
-    if not self:IsShown() then return end
-    origHide(self)
-    local fn = self:GetScript("OnHide")
-    if fn then fn(self) end
-  end
+  -- Show/Hide fire OnShow/OnHide in the base harness, like the client.
   holder.SetShown = function(self, v)
     if v then self:Show() else self:Hide() end
   end

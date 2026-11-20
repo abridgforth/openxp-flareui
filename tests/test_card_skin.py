@@ -706,7 +706,7 @@ class StepListWindow(unittest.TestCase):
 
     def test_rows_move_down_from_the_header_and_bottom_keeps_openxps_8px(self):
         env = self._open()
-        expected = 28 + 6 * 18 + 8 + 8
+        expected = 28 + 6 * 18 + 8 + 4
         self.assertEqual(env.run("return HARNESS.cardBits.list:GetHeight()"), expected)
         tops = env.run("""
           local out = {}
@@ -718,8 +718,8 @@ class StepListWindow(unittest.TestCase):
           end
           return out[1], out[2], out[6]
         """)
-        self.assertEqual(tops, (-36, -54, -126))
-        # Last row bottom: -126 - 18 = -144; list height 152 -> 8px left.
+        self.assertEqual(tops, (-32, -50, -122))
+        # Last row bottom: -122 - 18 = -140; list height 148 -> 8px left.
         env.run("OXPFUI.Reapply('again'); OXPFUI.Reapply('again')")
         self.assertEqual(env.run("return HARNESS.cardBits.list:GetHeight()"), expected)
 
@@ -764,6 +764,27 @@ class StepListWindow(unittest.TestCase):
           end
         """)
         self.assertEqual(insets, (21, -5, -4, 10))
+
+    def test_popup_has_a_compact_title_bar_with_the_title_centred(self):
+        env = self._open()
+        self.assertEqual(env.run("return HARNESS.cardBits.list.oxpfuiBands.titlebar:GetHeight()"), 24)
+        self.assertEqual(env.run("""
+          local l = HARNESS.cardBits.list
+          local pt, rel, relPt, x, y = l.title:GetPoint(1)
+          return pt, rel == l.oxpfuiBands.titlebar, relPt, x, y
+        """), ("LEFT", True, "LEFT", 14, 0))
+        # The rod sits on the bar's bottom edge, and no tracker strip is drawn.
+        self.assertIs(env.run("return HARNESS.cardBits.list.oxpfuiBands.titlerule.oxpfuiStrip.L:IsShown()"), True)
+        self.assertIsNone(env.run("local b = HARNESS.cardBits.list.oxpfuiBands.title; return b and b.oxpfuiStrip"))
+
+    def test_popup_keeps_a_background_and_frame_with_a_borderless_style(self):
+        env = Env(db={"opacity": 0, "borderStyle": "None", "followFlareUI": False})
+        env.boot()
+        env.run("HARNESS.openxp.card.ToggleStepList()")
+        self.assertEqual(env.run("local _,_,_,a = HARNESS.cardBits.list:GetBackdropColor(); return a"), 0.85)
+        self.assertIn("FlareUI-Thin.tga", env.run("return HARNESS.cardBits.list.backdrop.edgeFile"))
+        # The card itself still follows the borderless, see-through setting.
+        self.assertEqual(env.run("local _,_,_,a = OpenXPCard:GetBackdropColor(); return a"), 0)
 
     def test_close_button_keeps_openxps_look_without_the_atlas(self):
         env = Env(load_addon=False)

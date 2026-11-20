@@ -512,5 +512,120 @@ class Separators(unittest.TestCase):
                 self.assertEqual(env.calls_made_on(frame, m), before, m)
 
 
+class PinQuestTargets(unittest.TestCase):
+    """Quest Targets pinned to the guide (TargetsDock.lua)."""
+
+    def _env(self, pin="below", card_left=None):
+        env = Env(db={"pinTargets": pin})
+        if card_left is not None:
+            env.run(f"OpenXPCard.GetLeft = function() return {card_left} end")
+        env.boot()
+        return env
+
+    def _anchor(self, env):
+        return env.run("""
+          local pt, rel, relPt, x, y = RXPTargetFrame:GetPoint(1)
+          local name = rel == OpenXPCard and 'card' or rel == HARNESS.cardBits.list and 'list'
+            or rel == UIParent and 'UIParent' or tostring(rel)
+          return pt, name, relPt, x, y
+        """)
+
+    def test_off_by_default_and_untouched(self):
+        env = Env()
+        env.boot()
+        self.assertEqual(self._anchor(env), ("CENTER", "UIParent", "CENTER", 200, -100))
+
+    def test_below_the_guide(self):
+        env = self._env("below")
+        self.assertEqual(self._anchor(env), ("TOPLEFT", "card", "BOTTOMLEFT", 0, -12))
+        self.assertIs(env.run("return RXPTargetFrame.savePosition"), False)
+
+    def test_beside_the_guide_follows_the_step_list_side(self):
+        env = self._env("side", card_left=100)   # card on the left: right side
+        self.assertEqual(self._anchor(env), ("TOPLEFT", "card", "TOPRIGHT", 6, -8))
+        env2 = self._env("side", card_left=900)  # card on the right: left side
+        self.assertEqual(self._anchor(env2), ("TOPRIGHT", "card", "TOPLEFT", -6, -8))
+
+    def test_moves_under_the_step_list_and_back(self):
+        env = self._env("below")
+        env.run("HARNESS.openxp.card.ToggleStepList()")
+        self.assertEqual(self._anchor(env), ("TOPLEFT", "list", "BOTTOMLEFT", 0, -12))
+        env.run("HARNESS.cardBits.list.close:Click()")
+        self.assertEqual(self._anchor(env), ("TOPLEFT", "card", "BOTTOMLEFT", 0, -12))
+
+    def test_stays_put_when_there_is_no_room_under_the_list(self):
+        env = self._env("below")
+        env.run("HARNESS.openxp.card.ToggleStepList()")
+        env.run("HARNESS.cardBits.list.GetBottom = function() return 40 end; "
+                "HARNESS.cardBits.list:Hide(); HARNESS.cardBits.list:Show()")
+        env.run("OXPFUI.TargetsDock.Update('test')")
+        self.assertEqual(self._anchor(env), ("TOPLEFT", "card", "BOTTOMLEFT", 0, -12))
+
+    def test_combat_defers_the_move(self):
+        env = self._env("off")
+        env.set_combat(True)
+        env.slash("/oxpfui")
+        env.run("HARNESS.PickDropdown(OXPFUIPanel.pinDropdown, 'Below the guide')")
+        self.assertEqual(self._anchor(env), ("CENTER", "UIParent", "CENTER", 200, -100))
+        env.set_combat(False)
+        env.fire("PLAYER_REGEN_ENABLED")
+        self.assertEqual(self._anchor(env), ("TOPLEFT", "card", "BOTTOMLEFT", 0, -12))
+
+    def test_dragging_is_suspended_while_pinned_and_unpin_restores_your_spot(self):
+        env = self._env("below")
+        env.run("RXPTargetFrame:GetScript('OnMouseDown')(RXPTargetFrame)")
+        env.run("RXPTargetFrame_title:GetScript('OnMouseDown')(RXPTargetFrame_title)")
+        self.assertIsNone(env.run("return HARNESS.targetDrags"))
+        env.slash("/oxpfui")
+        env.run("HARNESS.PickDropdown(OXPFUIPanel.pinDropdown, 'Off')")
+        self.assertEqual(self._anchor(env), ("CENTER", "UIParent", "CENTER", 200, -100))
+        self.assertIsNone(env.run("return RXPTargetFrame.savePosition"))
+        env.run("RXPTargetFrame:GetScript('OnMouseDown')(RXPTargetFrame)")
+        self.assertEqual(env.run("return HARNESS.targetDrags"), 1)
+        self.assertEqual(env.run("return HARNESS.reloads"), 0)
+
+    def test_debug_report_tells_the_pin_state(self):
+        env = self._env("below")
+        env.slash("/oxpfui debug")
+        self.assertIn("Quest Targets pin: below the guide, now at the guide", "\n".join(env.chat()))
+
+
+class TitleCaseHeadings(unittest.TestCase):
+    def test_title_case_rules(self):
+        env = Env()
+        for src, want in (("UP NEXT", "Up Next"), ("ALONG THE WAY", "Along the Way"),
+                          ("THE BARRENS", "The Barrens"), ("Already Mixed", "Already Mixed"),
+                          ("16-19 DARKSHORE", "16-19 Darkshore")):
+            self.assertEqual(env.run(f"return OXPFUI.theme.TitleCase({src!r})"), want)
+
+    def test_zone_name_comes_from_the_guide_name(self):
+        env = Env()
+        env.boot()
+        self.assertEqual(env.run("return HARNESS.cardBits.header.zone:GetText()"), "Fake Guide")
+        env.run("HARNESS.openxp.currentGuide.displayname = \"1-6 Un'Goro Crater\"; "
+                "HARNESS.cardBits.header.zone:SetText(\"UN'GORO CRATER\"); OXPFUI.Reapply('t')")
+        self.assertEqual(env.run("return HARNESS.cardBits.header.zone:GetText()"), "Un'Goro Crater")
+
+    def test_up_next_label_and_along_the_way_prefix(self):
+        env = Env()
+        env.boot()
+        env.run("HARNESS.LayoutUpNext(); OXPFUI.Reapply('t')")
+        self.assertEqual(env.run("return HARNESS.cardBits.upNext.label:GetText()"), "Up Next")
+        env.run("HARNESS.cardBits.blocks[1].title:SetText('|cFF9EA3B3ALONG THE WAY:|r Kill things'); "
+                "OXPFUI.Reapply('t')")
+        self.assertEqual(env.run("return HARNESS.cardBits.blocks[1].title:GetText()"),
+                         "|cFF9EA3B3Along the Way:|r Kill things")
+
+    def test_up_next_line_is_centred_on_the_label(self):
+        env = Env()
+        env.boot()
+        env.run("HARNESS.LayoutUpNext(); OXPFUI.Reapply('t')")
+        self.assertEqual(env.run("""
+          local u = HARNESS.cardBits.upNext
+          local pt, rel, relPt, x, y = u.text:GetPoint(1)
+          return pt, rel == u.label, relPt, x, y
+        """), ("LEFT", True, "RIGHT", 8, 0))
+
+
 if __name__ == "__main__":
     unittest.main()

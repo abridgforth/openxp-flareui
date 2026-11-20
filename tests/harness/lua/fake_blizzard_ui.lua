@@ -43,18 +43,7 @@ templates.ButtonFrameTemplate = function(f)
   rawset(f, "SetPortraitShown", function(self, v) self.__portrait = v end)
   f.CloseButton = baseCreateFrame("Button", nil, f)
   f.CloseButton:SetScript("OnClick", function(self) self:GetParent():Hide() end)
-  -- Real client: Show/Hide fire OnShow/OnHide.
-  local origShow, origHide = f.Show, f.Hide
-  rawset(f, "Show", function(self)
-    if self:IsShown() then return end
-    origShow(self)
-    local fn = self:GetScript("OnShow"); if fn then fn(self) end
-  end)
-  rawset(f, "Hide", function(self)
-    if not self:IsShown() then return end
-    origHide(self)
-    local fn = self:GetScript("OnHide"); if fn then fn(self) end
-  end)
+  -- (Show/Hide fire OnShow/OnHide in the base harness, like the client.)
 end
 
 templates.UIPanelButtonTemplate = function(b)

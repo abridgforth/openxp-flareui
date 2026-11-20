@@ -28,15 +28,18 @@ deliberate, re-applied after every OpenXP refresh, and listed here and in
    from the border art; the step progress line drops 3 px below the title
    separator when one is drawn.
 3. **"Up next" lines**: narrowed by exactly the extra width of the FlareUI
-   label font, so they end where OpenXP meant them to.
+   label font, so they end where OpenXP meant them to; the first line is
+   centred on the "Up Next" label (OpenXP top-aligns them).
 4. **Step list rows**: each row's text ends at its status label or the row's
    padding and is cut off with "…". (OpenXP leaves rows without a status
    label unbounded, so long steps ran out of the window.) Status labels sit
    14 px in from the edge, clear of the border and scroll bar, and their
    plates fit the FlareUI font.
-5. **Step list top padding**: the rows start 8 px lower so the first row
-   clears the title strip, and the list grows by the same 8 px so the
-   bottom keeps OpenXP's spacing.
+5. **Step list header**: the title is centred in a 24 px title bar; the
+   rows start 4 px lower so the first row clears the bar's rod, and the list
+   grows by the same 4 px so the bottom keeps OpenXP's spacing.
+6. **Quest Targets pin**: with **Pin to the guide** on, OpenXP's Quest
+   Targets window is anchored to the guide card (see below).
 
 ## Install
 
@@ -118,10 +121,18 @@ step progress line is repainted in the title colour (gold in the Blizzard
 scheme). When following FlareUI, its frame style decides whether
 separators are drawn; otherwise the **Section separators** check box does.
 
-The step list's close button wears Blizzard's red close-button art, sized and
-placed like Blizzard's own (24×24 on the window's top-right corner), with
-its click area moved onto the art; the list keeps the FlareUI font while
-scrolling.
+The step list is a pop-up window, so it uses Blizzard's window anatomy
+rather than the tracker's: a compact 24 px title bar with the title centred
+in it and the tracker's rod along its bottom, and Blizzard's red close
+button sized and placed like Blizzard's own (24×24 on the window's top-right
+corner, click area on the art). It always has a background (at least 85%)
+and a frame, even when following a borderless tracker style: it opens over
+other windows, and its whole area takes clicks. It keeps the FlareUI font
+while scrolling.
+
+Headings use title case like the tracker's ("Darkshore", "Up Next",
+"Along the Way"); the zone name is taken from the guide's own name, so it
+is spelled as the guide spells it.
 
 The card's toolbar takes the look of FlareUI's tracker header buttons: each
 button is a dark square with a bronze rim (lit while pointed at) behind a
@@ -137,6 +148,25 @@ texture of FlareUI's unit frame bars ("FlareUI Forever"), keeping the bar's
 own colour. FlareUI hardcodes that texture today; if its maintainer adds a
 configurable unit frame texture, the bars should follow it. Without
 FlareUI the bars keep OpenXP's texture.
+
+## Quest Targets pin
+
+**Settings → Quest Targets → Pin to the guide** keeps OpenXP's Quest Targets
+window with the guide card:
+
+- **Off** (default): the window stays where you put it; the step list opens
+  over it.
+- **Below the guide**: under the card, left edges aligned.
+- **Beside the guide**: next to the card, on the side the step list opens
+  on (away from the screen edge).
+
+While the step list is open, a pinned window moves under it, and goes back
+when the list closes. If there is no room under the list, it stays put.
+While pinned it can't be dragged, and OpenXP does not save its position
+(OpenXP's own `savePosition = false`), so switching the pin off puts it
+back exactly where you had it. The window contains secure target buttons,
+which the game does not let addons move during combat: a move then waits
+until combat ends.
 
 ## Tracker dock
 

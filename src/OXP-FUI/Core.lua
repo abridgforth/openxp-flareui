@@ -22,15 +22,19 @@
 --      strip are inset from the border art; the step progress line drops a
 --      few px below the title strip when one is drawn.
 --   3. "Up next" lines (Card.lua): narrowed by exactly the width the
---      FlareUI label font adds, restoring OpenXP's right edge.
+--      FlareUI label font adds, restoring OpenXP's right edge; the first
+--      line is centred on the label instead of top-aligned to it.
 --   4. Step list rows (Card.lua): each row's text ends at its status pill or
 --      the row's padding (OpenXP leaves pill-less rows without a right edge,
 --      so their text ran out of the window); the pill sits 14px in from the
 --      row's right edge, clear of the border and scroll bar, and is as wide
 --      as its label in the FlareUI font (+ OpenXP's 12px).
---   5. Step list top padding (Card.lua): the rows start 8px lower, clear of
---      the title strip's bottom rod, and the list grows by the same 8px so
---      the bottom keeps OpenXP's own spacing.
+--   5. Step list header (Card.lua): the title is centred in a 24px title
+--      bar; the rows start 4px lower, clear of the bar's rod, and the list
+--      grows by the same 4px so the bottom keeps OpenXP's own spacing.
+--   6. Quest Targets pin (TargetsDock.lua): with its setting on, OpenXP's
+--      Quest Targets window is anchored below or beside the guide card, and
+--      under the step list while that is open.
 
 local ADDON_NAME, OXPFUI = ...
 

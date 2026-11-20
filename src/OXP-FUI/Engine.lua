@@ -325,6 +325,9 @@ function OXPFUI.Reapply(reason)
   if OXPFUI.Dock and OXPFUI.Dock.Update then
     OXPFUI.Dock.Update(state.lastReason)
   end
+  if OXPFUI.TargetsDock and OXPFUI.TargetsDock.Update then
+    OXPFUI.TargetsDock.Update(state.lastReason)
+  end
 end
 
 -- ---------------------------------------------------------------------------
@@ -443,6 +446,9 @@ function OXPFUI.DebugReport()
   if OXPFUI.FlareStyle then
     local ok, text = pcall(OXPFUI.FlareStyle.Describe)
     lines[#lines + 1] = L.debugFlareStyle:format(ok and text or ("error: " .. tostring(text)))
+  end
+  if OXPFUI.TargetsDock and OXPFUI.TargetsDock.Status then
+    lines[#lines + 1] = L.debugPin:format(OXPFUI.TargetsDock.Status())
   end
   if OXPFUI.Dock and OXPFUI.Dock.Status then
     lines[#lines + 1] = L.debugDocking:format(OXPFUI.Dock.Status())

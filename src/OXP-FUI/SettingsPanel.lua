@@ -25,7 +25,7 @@ local Settings = OXPFUI.Settings
 
 local panel -- built lazily on first open
 
-local WIDTH, HEIGHT = 460, 672
+local WIDTH, HEIGHT = 460, 728
 local LEFT = 20
 local COL2 = 230
 -- Sliders leave room on the right for their value label ("100%", "40px")
@@ -302,6 +302,16 @@ local function buildPanel()
     function(v) return L.attachPaddingValue:format(math.floor(v + 0.5)) end)
   y = y - 30
   f.matchBtn = makeCheckbox(f, "matchTrackerWidth", L.matchWidthLabel, L.matchWidthTip, LEFT, y)
+
+  -- Quest Targets ------------------------------------------------------------
+  y = y - 36
+  f.targetsHeader = header(f.content, L.targetsHeader, y)
+  y = y - 28
+  f.pinDropdown = makeDropdown(f, "pinTargets", L.pinLabel, L.pinTip, y, {
+    { value = "off", text = L.pinChoices.off },
+    { value = "below", text = L.pinChoices.below },
+    { value = "side", text = L.pinChoices.side },
+  })
 
   -- Reload note (shown only when the pending changes need a reload) -------
   f.reloadNote = fontString(f.content, "GameFontNormalSmall", "")

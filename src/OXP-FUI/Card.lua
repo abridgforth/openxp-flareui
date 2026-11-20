@@ -105,7 +105,29 @@ end
 -- Element sections
 -- ---------------------------------------------------------------------------
 
-local function skinHeader(header)
+-- The zone name as the guide spells it: OpenXP shows it upper-cased, taken
+-- from the guide's name, so the original casing is found there (this keeps
+-- names like "Un'Goro Crater" right, which case rules alone would not).
+local function zoneDisplayName(text, openxp)
+  if type(text) ~= "string" or text == "" or text ~= text:upper() then return text end
+  local guide = openxp and openxp.currentGuide
+  for _, name in ipairs({ guide and guide.displayname, guide and guide.name }) do
+    if type(name) == "string" then
+      local plain = name:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+      local s = plain:upper():find(text, 1, true)
+      if s then return plain:sub(s, s + #text - 1) end
+    end
+  end
+  return theme.TitleCase(text)
+end
+
+local function skinHeader(header, openxp)
+  local zone = theme.RealFrame(header.zone)
+  if zone and zone.GetText and zone.SetText then
+    local text = zone:GetText()
+    local shown = zoneDisplayName(text, openxp)
+    if shown ~= text then zone:SetText(shown) end
+  end
   theme.ApplyText(header.zone, "zone", "ZONE")
   theme.ApplyText(header.range, "counter", "DIM")
   theme.ApplyText(header.step, "counter", "TITLE")
@@ -175,9 +197,24 @@ local function skinHist(hist, openxp)
   end
 end
 
+-- OpenXP prefixes side and finished steps' titles with an all-caps label in
+-- its own colour ("|cFF9EA3B3ALONG THE WAY:|r ..."): title case, like the
+-- other headings.
+local function titleCasePrefix(fs)
+  local f = theme.RealFrame(fs)
+  if not (f and f.GetText and f.SetText) then return end
+  local text = f:GetText()
+  if type(text) ~= "string" then return end
+  local fixed = text:gsub("^(|c%x%x%x%x%x%x%x%x)([^|]-)(:|r)", function(open, label, close)
+    return open .. theme.TitleCase(label) .. close
+  end)
+  if fixed ~= text then f:SetText(fixed) end
+end
+
 local function skinBlocks(blocks)
   for _, b in ipairs(blocks or {}) do
     theme.ApplyText(b.title, "title", "TITLE")
+    titleCasePrefix(b.title)
     theme.ApplyText(b.num, "body", "DIM")
     -- travel badges are OpenXP's blue ones: amber, other kinds keep meaning.
     -- The objective bars take the badge's kind colour as a solid colour
@@ -218,11 +255,23 @@ local function skinUpNext(upNext)
   local label = theme.RealFrame(upNext.label)
   local before = label and label.GetStringWidth and label:GetStringWidth() or nil
   theme.ApplyText(upNext.label, "title", "ZONE")
+  if label and label.GetText then
+    local text = label:GetText()
+    local tc = theme.TitleCase(text)
+    if tc ~= text then label:SetText(tc) end
+  end
   local after = label and label.GetStringWidth and label:GetStringWidth() or nil
   local delta = (before and after) and (after - before) or 0
   for _, line in ipairs(upNext.lines or {}) do
     theme.ApplyText(line, "body", "OBJECTIVE")
     local rl = theme.RealFrame(line)
+    -- Layout exception 3 also centres the first line on the label: OpenXP
+    -- aligns their tops (+1px), which leaves the smaller body text 3px high
+    -- next to the larger label. Later lines hang off the first, as before.
+    if line == upNext.lines[1] and rl and label and rl.SetPoint then
+      rl:ClearAllPoints()
+      rl:SetPoint("LEFT", label, "RIGHT", 8, 0)
+    end
     if delta ~= 0 and rl and rl.IsShown and rl:IsShown() and rl.GetWidth and rl.SetWidth then
       local w = rl:GetWidth()
       if type(w) == "number" and w > 0 then rl:SetWidth(math.max(1, w - delta)) end
@@ -360,12 +409,12 @@ local function boundRowText(row)
 end
 
 -- Layout exception 5 (Core.lua): OpenXP starts the rows 28px below the
--- list's top, which is right under its own small title but leaves the first
--- row against the title strip's bottom rod. The rows move down by
+-- list's top, right under its own small title; with the 24px title bar and
+-- its rod, that leaves the first row touching the rod. The rows move down by
 -- LIST_TOP_PAD and the list grows by the same amount, so the bottom keeps
 -- OpenXP's own 8px. Rows are re-anchored exactly as OpenXP anchors them
 -- (TOPLEFT 4 / TOPRIGHT -4, rowH apart), only lower; idempotent.
-local LIST_TOP_PAD = 8
+local LIST_TOP_PAD = 4
 local function padListTop(list)
   local l = theme.RealFrame(list)
   if not (l and l.GetHeight and l.SetHeight) then return end
@@ -387,12 +436,25 @@ local function padListTop(list)
 end
 
 local function skinStepList(list, openxp)
-  theme.ApplyBackdrop(list)
+  -- A pop-up window: always a background and frame, and a Blizzard-style
+  -- compact title bar (see theme.ApplyWindowTitleBar) instead of the
+  -- tracker's taller title strip.
+  theme.ApplyPopupBackdrop(list)
   padListTop(list)
   theme.ApplyText(list.title, "header", "TITLE")
   local rl, rt = theme.RealFrame(list), theme.RealFrame(list.title)
-  if rl and rt and rl.GetChildren then theme.ApplyTitleStrips(rl, rt) end
+  if rl and rt and rl.GetChildren then
+    local bar = theme.ApplyWindowTitleBar(rl)
+    -- Layout exception 5: the title is centred in the bar (OpenXP puts it at
+    -- TOPLEFT 14,-9 under a 28px header of its own).
+    rt:ClearAllPoints()
+    rt:SetPoint("LEFT", bar, "LEFT", theme.ART.PAD, 0)
+    rt:SetPoint("RIGHT", bar, "RIGHT", -30, 0)
+    if rt.SetJustifyH then rt:SetJustifyH("LEFT") end
+    if rt.SetWordWrap then rt:SetWordWrap(false) end
+  end
   styleCloseButton(list.close, list)
+  if rl and OXPFUI.TargetsDock then OXPFUI.TargetsDock.WatchList(rl) end
   local rows = list.rows or {}
   for _, row in ipairs(rows) do
     local colorName = "TITLE"
@@ -600,7 +662,7 @@ local function Apply(ctx)
     end
   end
   if header then
-    skinHeader(ctx.Guard(header))
+    skinHeader(ctx.Guard(header), openxp)
     local underStrip = ensureDivider(f, header)
     insetStepProgress(rf, header, ctx, underStrip)
   end

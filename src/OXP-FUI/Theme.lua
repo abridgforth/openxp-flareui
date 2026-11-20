@@ -616,4 +616,92 @@ function theme.ApplyToolbarButton(btn, opts)
   end
 end
 
+
+-- ---------------------------------------------------------------------------
+-- Pop-up windows (the step list): Blizzard window anatomy rather than the
+-- tracker's. A compact title bar the height of Blizzard's close button,
+-- with the tracker's rod (end knobs and all) along its bottom edge; and a
+-- background and frame whatever the tracker style, since a pop-up opens
+-- over other windows and catches clicks across its whole area.
+-- ---------------------------------------------------------------------------
+
+theme.TITLE_BAR_H = 24       -- = UIPanelCloseButton's 24px
+theme.POPUP_MIN_OPACITY = 0.85
+
+-- Backdrop for a pop-up window: the theme's recipe, but never see-through
+-- and never frameless (a "None" border falls back to Thin).
+function theme.ApplyPopupBackdrop(frame)
+  local db = OXPFUI.db or {}
+  local key = theme.BorderKey(db)
+  if key == "None" then key = "Thin" end
+  local border = theme.BORDERS[key]
+  local opacity = math.max(panelOpacity(db), theme.POPUP_MIN_OPACITY)
+  frame:SetBackdrop({
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+    edgeFile = border.file,
+    tile = false, tileSize = 0, edgeSize = border.edgeSize,
+    insets = { left = 3, right = 3, top = 3, bottom = 3 },
+  })
+  frame:SetBackdropColor(1, 1, 1, opacity)
+  local b = theme.C.BORDER
+  frame:SetBackdropBorderColor(b[1], b[2], b[3], b[4])
+end
+
+-- The title bar band (own frame across the window's top, TITLE_BAR_H tall):
+-- a slightly darker fill and the rod along its bottom. Returns the band, for
+-- the caller to centre the title and controls on.
+function theme.ApplyWindowTitleBar(frame)
+  local A = theme.ART
+  local bar = theme.Band(frame, "titlebar")
+  bar:ClearAllPoints()
+  bar:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+  bar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+  bar:SetHeight(theme.TITLE_BAR_H)
+  if not bar.fill then
+    bar.fill = bar:CreateTexture(nil, "BACKGROUND", nil, -2)
+    bar.fill:SetPoint("TOPLEFT", bar, "TOPLEFT", 3, -3)
+    bar.fill:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -3, 0)
+  end
+  bar.fill:SetColorTexture(0, 0, 0, 0.35)
+  local rule = theme.Band(frame, "titlerule")
+  rule:ClearAllPoints()
+  rule:SetHeight(1)
+  rule:SetPoint("TOP", bar, "BOTTOM")
+  rule:SetPoint("LEFT", frame, "LEFT", A.HEADER_INSET, 0)
+  rule:SetPoint("RIGHT", frame, "RIGHT", -A.HEADER_INSET, 0)
+  local reach = theme.ArtReach(A.TITLE)
+  if not theme.PlaceStrip(rule, A.TITLE, reach, reach, A.FOOT_BAND) then
+    -- no atlas: a plain bronze hairline
+    theme.HideStrip(rule)
+    if not rule.line then
+      rule.line = rule:CreateTexture(nil, "ARTWORK")
+      rule.line:SetAllPoints(rule)
+    end
+    local c = theme.C.ACCENT
+    rule.line:SetColorTexture(c[1], c[2], c[3], 0.5)
+    rule.line:Show()
+  elseif rule.line then
+    rule.line:Hide()
+  end
+  return bar
+end
+
+
+-- Title case for OpenXP's all-caps labels ("UP NEXT" -> "Up Next", "ALONG
+-- THE WAY" -> "Along the Way"), like the tracker's own headings. Small
+-- words stay lower case unless first; letters after a hyphen start a word.
+-- Text that is not all caps is returned unchanged.
+local SMALL = { a = true, an = true, the = true, of = true, to = true, ["and"] = true,
+                ["in"] = true, on = true, at = true, ["for"] = true, by = true }
+function theme.TitleCase(s)
+  if type(s) ~= "string" or s ~= s:upper() or not s:find("%a") then return s end
+  local first = true
+  return (s:lower():gsub("(%a[%w']*)", function(word)
+    local out = word
+    if first or not SMALL[word] then out = word:sub(1, 1):upper() .. word:sub(2) end
+    first = false
+    return out
+  end))
+end
+
 OXPFUI.theme = theme

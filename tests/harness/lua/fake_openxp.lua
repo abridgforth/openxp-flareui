@@ -473,7 +473,17 @@ end
 -- label font strings. Buttons are created on demand in the real addon and
 -- kept in targetFrame.enemyTargetButtons / .friendlyTargetButtons.
 local tf = CreateFrame("Frame", "RXPTargetFrame", UIParent, "BackdropTemplate")
+-- Targeting.lua CreateTargetFrame: movable, dragged by OnMouseDown/Up on the
+-- frame and its title strip; the saved spot comes from LoadFramePosition.
+tf:SetSize(200, 120)
+tf:SetPoint("CENTER", UIParent, "CENTER", 200, -100)
+tf:SetMovable(true)
+tf.onMouseDown = function() HARNESS.targetDrags = (HARNESS.targetDrags or 0) + 1; tf:StartMoving() end
+tf.onMouseUp = function() tf:StopMovingOrSizing() end
+tf:SetScript("OnMouseDown", tf.onMouseDown)
+tf:SetScript("OnMouseUp", tf.onMouseUp)
 local tfTitle = CreateFrame("Frame", "RXPTargetFrame_title", tf)
+tfTitle:SetScript("OnMouseDown", tf.onMouseDown)
 tfTitle.text = tfTitle:CreateFontString(nil, "OVERLAY")
 tf.title = tfTitle
 tfTitle.keyHint = tfTitle:CreateFontString(nil, "OVERLAY")
@@ -1264,7 +1274,17 @@ local addon = {
   title = "OpenXP",
   RXPFrame = rxpFrame,
   settings = {
+    -- SettingsPanel.lua LoadFramePosition: skipped for savePosition == false.
+    LoadFramePosition = function(self, frameName, frame)
+      if frame.savePosition == false then return end
+      local positions = self.profile.framePositions and self.profile.framePositions[frameName]
+      if positions then
+        frame:ClearAllPoints()
+        for i = 1, #positions do frame:SetPoint(unpack(positions[i])) end
+      end
+    end,
     profile = {
+      framePositions = { activeTargetFrame = { { "CENTER", UIParent, "CENTER", 200, -100 } } },
       guideFont = "default",          -- "Arial Narrow" default in OpenXP
       guideFontSize = 12,
       guideFontOutline = "OUTLINE",
@@ -1322,6 +1342,10 @@ addonCard = addon.card
 -- The card's CurrentStep() reads this off the addon table.
 function addon.GetGuideProgress() return 4 end
 addon.currentGuide = { name = "Fake Guide", displayname = "Fake Guide 1-10", steps = {} }
+-- Guide header (OpenXPCard.lua SetHeader): the zone from the guide's name,
+-- upper-cased.
+HARNESS.cardBits.header.zone:SetFont("Fonts\\ARIALN.TTF", 12, "")
+HARNESS.cardBits.header.zone:SetText("FAKE GUIDE")
 
 addon.arrowFrame = af
 
