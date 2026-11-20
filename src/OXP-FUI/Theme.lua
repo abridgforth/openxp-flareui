@@ -500,15 +500,19 @@ function theme.ApplyTitleStrips(frame, header)
   local A = theme.ART
   local band = theme.Band(frame, "title")
   local foot = theme.Band(frame, "foot")
+  -- The band is placed even without strips: header controls (the step
+  -- list's close button) centre on it either way.
+  if header then
+    band:ClearAllPoints()
+    band:SetPoint("TOP", header, "TOP")
+    band:SetPoint("BOTTOM", header, "BOTTOM")
+    band:SetPoint("LEFT", frame, "LEFT", A.HEADER_INSET, 0)
+    band:SetPoint("RIGHT", frame, "RIGHT", -A.HEADER_INSET, 0)
+  end
   if not (header and theme.StripsOn()) then
     theme.HideStrip(band); theme.HideStrip(foot)
     return false
   end
-  band:ClearAllPoints()
-  band:SetPoint("TOP", header, "TOP")
-  band:SetPoint("BOTTOM", header, "BOTTOM")
-  band:SetPoint("LEFT", frame, "LEFT", A.HEADER_INSET, 0)
-  band:SetPoint("RIGHT", frame, "RIGHT", -A.HEADER_INSET, 0)
   local reach = theme.ArtReach(A.TITLE)
   local leftOut = reach - A.KNOB_IN + A.TITLE_LEFT
   local rightOut = reach + A.TITLE_RIGHT - A.KNOB_IN - A.TITLE_LEFT
@@ -559,6 +563,57 @@ function theme.ApplyHeadingStrip(frame, label, key, host)
   band:SetPoint("RIGHT", frame, "RIGHT", -A.PAD, 0)
   local reach = theme.ArtReach(A.HEADING) + A.TEXT - A.HEADING_IN
   return theme.PlaceStrip(band, A.HEADING, reach, reach)
+end
+
+
+-- A toolbar button in the look of FlareUI's tracker header buttons: a dark
+-- square with a 1px bronze rim (lit bronze while pointed at) behind a gold
+-- icon. Drawn on an own frame under the button's icon; the button keeps its
+-- size, place, click and tooltip. OpenXP's own hover wash stays hidden.
+-- opts.wide: the button shows a text label too, so the box spans its width.
+function theme.ApplyToolbarButton(btn, opts)
+  local b = theme.RealFrame(btn)
+  if not (b and b.CreateTexture and b.GetFrameLevel) then return end
+  local box = b.oxpfuiBox
+  if not box then
+    box = CreateFrame("Frame", nil, b, "BackdropTemplate")
+    box:SetFrameLevel(math.max(0, (b:GetFrameLevel() or 1) - 1))
+    if box.EnableMouse then box:EnableMouse(false) end
+    box:SetBackdrop({
+      bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Buttons\\WHITE8X8",
+      tile = false, tileSize = 0, edgeSize = 1,
+      insets = { left = 1, right = 1, top = 1, bottom = 1 },
+    })
+    b.oxpfuiBox = box
+    local function paint(lit)
+      local c = lit and theme.C.BOX_LIT or theme.C.BOX
+      box:SetBackdropBorderColor(c[1], c[2], c[3], 1)
+    end
+    box.paint = paint
+    b:HookScript("OnEnter", function(self)
+      paint(true)
+      if self.bg then self.bg:SetAlpha(0) end
+    end)
+    b:HookScript("OnLeave", function(self)
+      paint(false)
+      if self.bg then self.bg:SetAlpha(0) end
+    end)
+  end
+  box:SetBackdropColor(0, 0, 0, 0.6)
+  box.paint(false)
+  box:ClearAllPoints()
+  if opts and opts.wide then
+    box:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -3)
+    box:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
+  else
+    box:SetSize(24, 24)
+    box:SetPoint("CENTER", b, "CENTER")
+  end
+  if b.bg then b.bg:SetAlpha(0) end
+  if b.icon and b.icon.SetVertexColor then
+    local c = theme.C.TITLE
+    b.icon:SetVertexColor(c[1], c[2], c[3], 1)
+  end
 end
 
 OXPFUI.theme = theme

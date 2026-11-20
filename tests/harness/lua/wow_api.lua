@@ -380,7 +380,9 @@ local texExtra = {
     self.__vertexColor = { r, g, b, a }
   end,
   GetVertexColor = function(self)
-    local c = self.__vertexColor or self.__colorTexture
+    -- Real client: only the vertex tint; a colour texture's own colour is
+    -- not reported here (seen in game: OpenXP's solid blue fills).
+    local c = self.__vertexColor
     if not c then return 1, 1, 1, 1 end
     return c[1], c[2], c[3], c[4] or 1
   end,

@@ -714,7 +714,7 @@ local function CreateWelcomeFrame()
 
   -- Accent-blue textures (the header divider and the logo glow).
   local divider = f:CreateTexture(nil, "ARTWORK")
-  divider:SetColorTexture(90 / 255, 184 / 255, 1, 0.6)
+  divider:SetColorTexture(1, 0.82, 0, 0.6) -- 1.3.66: COLORS.gold
   local glow = f:CreateTexture(nil, "ARTWORK")
   glow:SetTexture("Interface/Cooldown/star4")
   glow:SetVertexColor(90 / 255, 184 / 255, 1, 0.35)
@@ -791,7 +791,7 @@ function ResetWelcome()
   FrameBackdrop(w.swatch, { 0.72, 0.42, 1, 1 }, OXP_COLORS.border)
   FrameBackdrop(w.start, { 28 / 255, 70 / 255, 104 / 255, 1 }, OXP_COLORS.accent)
   FrameBackdrop(w.later, OXP_COLORS.panel, OXP_COLORS.border)
-  w.divider:SetColorTexture(90 / 255, 184 / 255, 1, 0.6)
+  w.divider:SetColorTexture(1, 0.82, 0, 0.6)
   w.glow:SetVertexColor(90 / 255, 184 / 255, 1, 0.35)
   w.title:SetTextColor(1, 1, 1, 1)
   w.subtitle:SetTextColor(0.86, 0.86, 0.9, 1)

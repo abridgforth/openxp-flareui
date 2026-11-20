@@ -77,10 +77,11 @@ class WelcomeWindow(unittest.TestCase):
         env = Env()
         env.boot()
         env.run("HARNESS.openxp.welcome.Show('welcome')")
-        # The header divider and logo glow keep their alpha, gain bronze.
-        self.assertEqual(env.run(
-            "local r,g,b,a = HARNESS.welcome.divider:GetVertexColor(); return r,g,b,a"),
-            (0.80, 0.60, 0.34, 0.6))
+        # OpenXP 1.3.66 draws the header divider in its gold (a solid colour
+        # texture, already on-theme): left as it is. The logo glow is
+        # vertex-tinted accent blue: it keeps its alpha and turns bronze.
+        self.assertEqual(env.run("return HARNESS.welcome.divider:GetColorTexture()"),
+                         (1.0, 0.82, 0.0, 0.6))
         self.assertEqual(env.run(
             "local r,g,b,a = HARNESS.welcome.glow:GetVertexColor(); return r,g,b,a"),
             (0.80, 0.60, 0.34, 0.35))

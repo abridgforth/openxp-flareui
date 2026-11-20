@@ -131,7 +131,7 @@ class CardTextColors(unittest.TestCase):
         self.assertEqual(color_of(env, f"{bits}.mini.text"), GOLD)
         self.assertEqual(font_of(env, f"{bits}.mini.text"), (FRIZQT, 12, ""))
         self.assertEqual(color_of(env, f"{bits}.mini.count"), GREY_DONE)
-        self.assertEqual(color_of(env, f"{bits}.bar.find.label"), GREY)
+        self.assertEqual(color_of(env, f"{bits}.bar.find.label"), GOLD)  # Blizzard button gold
         self.assertEqual(font_of(env, f"{bits}.bar.find.label"), (FRIZQT, 11, ""))
 
     def test_status_pills_use_flareui_status_colors(self):
@@ -156,8 +156,10 @@ class CardPalette(unittest.TestCase):
         self.assertEqual(env.run(f"return {bits}.progress:GetColorTexture()"),
                          (1.0, 0.82, 0.0, 1.0))
         # the rested-XP wash keeps its softer alpha, just amber instead of blue
-        self.assertEqual(vertex_of(env, f"{bits}.xpStrip.rested"),
+        self.assertEqual(env.run(f"return {bits}.xpStrip.rested:GetColorTexture()"),
                          (0.80, 0.60, 0.34, 0.35))
+        self.assertEqual(env.run(f"return {bits}.xpStrip.fill:GetColorTexture()"),
+                         (1.0, 0.82, 0.0, 0.9))
 
     def test_blue_badges_and_bars_become_amber_but_other_kinds_keep_color(self):
         env = Env()
@@ -166,7 +168,7 @@ class CardPalette(unittest.TestCase):
         b2 = "HARNESS.cardBits.blocks[2]"
         # block 1's badge stays travel: ring amber now
         self.assertEqual(vertex_of(env, f"{b1}.badge.ring"), ZONE)
-        self.assertEqual(vertex_of(env, f"{b1}.lines[1].bar"), ZONE)
+        self.assertEqual(env.run(f"return {b1}.lines[1].bar:GetColorTexture()"), ZONE)
         # block 2 is recolored by the fake to a kill badge (orange): untouched
         env.run("HARNESS.cardBits.blocks[2].badge.ring:SetVertexColor(1, 112/255, 67/255, 1)")
         env.run("OXPFUI.Reapply('test')")
@@ -238,10 +240,10 @@ class StepList(unittest.TestCase):
         self.assertNotEqual(env.run(f"return {scroll} == nil"), True)
         # both drawn as colour textures: faint bronze track, solid bronze thumb
         self.assertEqual(env.run(
-            f"local t = {track}; local r,g,b = t:GetVertexColor();"
+            f"local t = {track}; local r,g,b = t:GetColorTexture();"
             "return r,g,b,t.__colorTexture and t.__colorTexture[4]"), (0.50, 0.38, 0.21, 0.25))
         self.assertEqual(env.run(
-            f"local t = {thumb}; local r,g,b = t:GetVertexColor();"
+            f"local t = {thumb}; local r,g,b = t:GetColorTexture();"
             "return r,g,b,t.__colorTexture and t.__colorTexture[4]"), (0.50, 0.38, 0.21, 1.0))
         self.assertEqual(env.run(f"return {track}:GetWidth()"), 1)
         self.assertEqual(env.run(f"return {thumb}:GetWidth()"), 3)
@@ -304,16 +306,34 @@ CARD_BUTTONS = (
 
 
 class BorderlessButtons(unittest.TestCase):
-    """OpenXP's icon buttons (and the invisible "Step n / n" hit area) keep
-    their own borderless look: the skin paints no square around them."""
+    """The toolbar's buttons wear FlareUI's tracker header button look (a
+    dark square with a bronze rim behind a gold icon); every other card
+    button, and the invisible "Step n / n" hit area, keeps OpenXP's own
+    borderless look."""
 
-    def test_no_card_button_gets_a_square_border(self):
+    def test_toolbar_buttons_get_flareui_boxes_and_others_do_not(self):
         env = Env()
         env.boot()
         env.run("HARNESS.openxp.card.ToggleStepList()")
         for expr in CARD_BUTTONS + ("HARNESS.cardBits.header.stepBtn",):
             with self.subTest(button=expr):
-                self.assertEqual(env.run(f"return {expr}.oxpfuiBox == nil"), True)
+                expected = expr.startswith("HARNESS.cardBits.bar.")
+                self.assertEqual(env.run(f"return {expr}.oxpfuiBox ~= nil"), expected)
+
+    def test_toolbar_box_rim_lights_on_hover_and_icon_is_gold(self):
+        env = Env()
+        env.boot()
+        btn = "HARNESS.cardBits.bar.settings"
+        rim = lambda: tuple(round(v, 2) for v in env.run(  # noqa: E731
+            f"local r,g,b = {btn}.oxpfuiBox:GetBackdropBorderColor(); return r,g,b"))
+        self.assertEqual(rim(), (0.5, 0.38, 0.21))
+        env.run(f"{btn}:GetScript('OnEnter')({btn})")
+        self.assertEqual(rim(), (0.65, 0.49, 0.27))
+        self.assertEqual(env.run(f"return {btn}.bg:GetAlpha()"), 0)
+        env.run(f"{btn}:GetScript('OnLeave')({btn})")
+        self.assertEqual(rim(), (0.5, 0.38, 0.21))
+        self.assertEqual(tuple(round(v, 2) for v in env.run(
+            f"local r,g,b = {btn}.icon:GetVertexColor(); return r,g,b")), (1.0, 0.82, 0.0))
 
     def test_chrome_never_moves_or_resizes_the_buttons(self):
         env = Env()
@@ -701,6 +721,26 @@ class StepListWindow(unittest.TestCase):
         env.run("HARNESS.cardBits.list.close:Click()")
         self.assertEqual(env.run("return HARNESS.cardBits.list:IsShown()"), False)
 
+    def test_status_pills_clear_the_border_and_fit_their_text(self):
+        env = self._open()
+        res = env.run("""
+          for _, row in ipairs(HARNESS.cardBits.list.rows) do
+            if row.pill:IsShown() then
+              local pt, rel, relPt, x = row.pill:GetPoint(#row.pill.__points)
+              return pt, rel == row, relPt, x, row.pill:GetWidth() == row.pill.text:GetStringWidth() + 12
+            end
+          end
+        """)
+        self.assertEqual(res, ("RIGHT", True, "RIGHT", -14, True))
+
+    def test_close_art_centres_on_the_title_band(self):
+        env = self._open()
+        self.assertEqual(env.run("""
+          local l = HARNESS.cardBits.list
+          local pt, rel = l.close.oxpfuiRed:GetPoint(1)
+          return pt, rel == l.oxpfuiBands.title
+        """), ("RIGHT", True))
+
     def test_close_button_keeps_openxps_look_without_the_atlas(self):
         env = Env(load_addon=False)
         env.run("HARNESS.missingAtlases = { ['RedButton-Exit'] = true }")
@@ -747,3 +787,28 @@ class SectionRules(unittest.TestCase):
           local pt, rel, relPt = h.oxpfuiBands.history:GetPoint(1)
           return pt, rel == h, relPt
         """), ("TOP", True, "BOTTOM"))
+
+
+class Toolbar(unittest.TestCase):
+    def test_wash_hidden_and_top_line_becomes_the_section_rule(self):
+        env = Env()
+        env.boot()
+        bar = "HARNESS.cardBits.bar"
+        self.assertEqual(env.run(f"return {bar}.bg:GetAlpha()"), 0)
+        self.assertIs(env.run(f"return {bar}.oxpfuiBands.toolbar.oxpfuiStrip.L:IsShown()"), True)
+        self.assertEqual(env.run(f"local _,_,_,a = {bar}.line:GetColorTexture(); return a"), 0)
+
+    def test_without_separators_the_top_line_is_faint_bronze(self):
+        env = Env(db={"separators": False, "followFlareUI": False})
+        env.boot()
+        self.assertEqual(env.run("return HARNESS.cardBits.bar.line:GetColorTexture()"),
+                         (0.8, 0.6, 0.34, 0.35))
+
+    def test_labelled_buttons_box_their_full_width(self):
+        env = Env()
+        env.boot()
+        find = "HARNESS.cardBits.bar.find"
+        env.run(f"{find}.label:Show(); OXPFUI.Reapply('wide')")
+        self.assertEqual(env.run(f"local p = {find}.oxpfuiBox:GetPoint(1); return p"), "TOPLEFT")
+        env.run(f"{find}.label:Hide(); OXPFUI.Reapply('narrow')")
+        self.assertEqual(env.run(f"local p = {find}.oxpfuiBox:GetPoint(1); return p"), "CENTER")

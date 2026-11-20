@@ -25,7 +25,9 @@
 --      FlareUI label font adds, restoring OpenXP's right edge.
 --   4. Step list rows (Card.lua): each row's text ends at its status pill or
 --      the row's padding (OpenXP leaves pill-less rows without a right edge,
---      so their text ran out of the window).
+--      so their text ran out of the window); the pill sits 14px in from the
+--      row's right edge, clear of the border and scroll bar, and is as wide
+--      as its label in the FlareUI font (+ OpenXP's 12px).
 --   5. Step list bottom padding (Card.lua): the list grows a few px so the
 --      last row clears the border art.
 

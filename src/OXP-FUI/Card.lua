@@ -179,7 +179,12 @@ local function skinBlocks(blocks)
   for _, b in ipairs(blocks or {}) do
     theme.ApplyText(b.title, "title", "TITLE")
     theme.ApplyText(b.num, "body", "DIM")
-    -- travel badges are OpenXP's blue ones: amber, other kinds keep meaning
+    -- travel badges are OpenXP's blue ones: amber, other kinds keep meaning.
+    -- The objective bars take the badge's kind colour as a solid colour
+    -- texture (no vertex colour to match), so the badge decides: a travel
+    -- badge (blue, or bronze once skinned) repaints its bars bronze too.
+    local ring = b.badge and b.badge.ring
+    local travel = ring ~= nil and (matches(ring, theme.OXP_BLUE) or matches(ring, C.ACCENT))
     amberIfBlue(b.badge and b.badge.fill, 0.16)
     amberIfBlue(b.badge and b.badge.ring)
     amberIfBlue(b.badge and b.badge.icon)
@@ -193,7 +198,9 @@ local function skinBlocks(blocks)
       theme.ApplyText(line.text, "body", done and "OBJECTIVE_DONE" or "OBJECTIVE")
       theme.ApplyText(line.count, "body", "DIM")
       if done then setVertex(mark, C.TITLE_DONE) end
-      amberIfBlue(line.bar)
+      if travel and line.bar and line.bar.SetColorTexture then
+        line.bar:SetColorTexture(C.ACCENT[1], C.ACCENT[2], C.ACCENT[3], 1)
+      end
     end
   end
 end
@@ -227,21 +234,35 @@ local function skinBar(bar)
   for _, btn in ipairs({ bar.prev, bar.next, bar.menu, bar.settings,
                          bar.collapse, bar.find, bar.stop, bar.resume }) do
     if btn then
-      theme.ApplyText(btn.label, "body", "OBJECTIVE")
-      if btn.bg and matches(btn.bg, theme.OXP_BLUE) then
-        setVertex(btn.bg, C.ACCENT, 0.16)  -- labelled buttons' blue wash -> amber
-      end
-      if btn.icon and matches(btn.icon, OXP_BLUE_LABEL) then
-        setVertex(btn.icon, C.ACCENT)
-      end
+      theme.ApplyText(btn.label, "body", "TITLE")
+      local label = theme.RealFrame(btn.label)
+      local wide = label ~= nil and label.IsShown ~= nil and label:IsShown()
+      theme.ApplyToolbarButton(btn, { wide = wide })
+    end
+  end
+  -- The bar's own white wash goes (FlareUI draws no band behind its
+  -- buttons); its 1px top line becomes the section rule when separators are
+  -- on, and a faint bronze line otherwise.
+  local rb = theme.RealFrame(bar)
+  if bar.bg and bar.bg.SetAlpha then bar.bg:SetAlpha(0) end
+  if rb and bar.line then
+    local drawn = theme.ApplySectionRule(rb, theme.RealFrame(bar.line), "TOP", "toolbar", rb)
+    if bar.line.SetColorTexture then
+      local c = C.ACCENT
+      bar.line:SetColorTexture(c[1], c[2], c[3], drawn and 0 or 0.35)
     end
   end
 end
 
 local function skinXPStrip(xpStrip)
-  -- rested XP is drawn in the blue accent: amber keeps the meaning
-  if xpStrip and xpStrip.rested and matches(xpStrip.rested, theme.OXP_BLUE) then
-    setVertex(xpStrip.rested, C.ACCENT, 0.35)
+  -- OpenXP paints these as solid colour textures (gold XP, faint blue
+  -- rested), so they are repainted, not matched: XP in the title colour,
+  -- rested in the bronze accent at OpenXP's own alphas.
+  if xpStrip and xpStrip.fill and xpStrip.fill.SetColorTexture then
+    xpStrip.fill:SetColorTexture(C.TITLE[1], C.TITLE[2], C.TITLE[3], 0.9)
+  end
+  if xpStrip and xpStrip.rested and xpStrip.rested.SetColorTexture then
+    xpStrip.rested:SetColorTexture(C.ACCENT[1], C.ACCENT[2], C.ACCENT[3], 0.35)
   end
 end
 
@@ -260,7 +281,7 @@ end
 -- Blizzard's windows do. Same button, size, spot and click; OpenXP's icon
 -- and wash are hidden while the art shows. Without the atlas (an older
 -- client) OpenXP's own look stays.
-local function styleCloseButton(btn)
+local function styleCloseButton(btn, list)
   local b = theme.RealFrame(btn)
   if not (b and b.CreateTexture) then return end
   local art = b.oxpfuiRed
@@ -286,6 +307,17 @@ local function styleCloseButton(btn)
   end
   if b.icon then b.icon:SetAlpha(0) end
   if b.bg then b.bg:SetAlpha(0) end
+  -- Centred on the title's header band at the window's right inset, like a
+  -- Blizzard close button, rather than in OpenXP's taller 40x30 button
+  -- (still inside it, so the click area is unchanged).
+  local l = theme.RealFrame(list)
+  local band = l and l.oxpfuiBands and l.oxpfuiBands.title
+  art:ClearAllPoints()
+  if band and band.GetNumPoints and band:GetNumPoints() > 0 then
+    art:SetPoint("RIGHT", band, "RIGHT", -2, 0)
+  else
+    art:SetPoint("CENTER", b, "CENTER")
+  end
 end
 
 -- Layout exception (documented in Core.lua): OpenXP ends a row's text at its
@@ -293,13 +325,24 @@ end
 -- text has no right edge and runs out of the window. Every row's text ends
 -- at the pill when one shows, else at the row's own right padding (OpenXP's
 -- 6px), and truncates with "..." there as OpenXP intends.
+-- Layout exception 4 also places the pill: ROW_RIGHT px in from the row's
+-- right edge (OpenXP: 6), clear of the border art and the scroll bar, and
+-- as wide as its text in the FlareUI font plus OpenXP's own 12px (OpenXP
+-- sizes it for its smaller font, so the wider label overflowed its plate).
+local ROW_RIGHT = 14
 local function boundRowText(row)
   local text, pill, r = theme.RealFrame(row.text), theme.RealFrame(row.pill), theme.RealFrame(row)
   if not (text and r and text.SetPoint) then return end
+  if pill and pill.SetPoint then
+    pill:SetPoint("RIGHT", r, "RIGHT", -ROW_RIGHT, 0)
+    local pt = theme.RealFrame(row.pill.text)
+    local w = pt and pt.GetStringWidth and pt:GetStringWidth()
+    if type(w) == "number" and w > 0 and pill.SetWidth then pill:SetWidth(w + 12) end
+  end
   if pill and pill.IsShown and pill:IsShown() then
     text:SetPoint("RIGHT", pill, "LEFT", -6, 0)
   else
-    text:SetPoint("RIGHT", r, "RIGHT", -6, 0)
+    text:SetPoint("RIGHT", r, "RIGHT", -ROW_RIGHT, 0)
   end
   if text.SetWordWrap then text:SetWordWrap(false) end
 end
@@ -322,11 +365,11 @@ end
 
 local function skinStepList(list, openxp)
   theme.ApplyBackdrop(list)
-  styleCloseButton(list.close)
   padListBottom(list)
   theme.ApplyText(list.title, "header", "TITLE")
   local rl, rt = theme.RealFrame(list), theme.RealFrame(list.title)
   if rl and rt and rl.GetChildren then theme.ApplyTitleStrips(rl, rt) end
+  styleCloseButton(list.close, list)
   local rows = list.rows or {}
   for _, row in ipairs(rows) do
     local colorName = "TITLE"
