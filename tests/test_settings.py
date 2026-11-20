@@ -543,6 +543,61 @@ class Separators(unittest.TestCase):
                 self.assertEqual(env.calls_made_on(frame, m), before, m)
 
 
+class QuestTargetsWindow(unittest.TestCase):
+    """Layout exception 10: content under the strip, and the fold."""
+
+    def _y(self, env, name):
+        return env.run(f"local _, _, _, _, y = {name}:GetPoint(1); return y")
+
+    def test_content_moves_under_the_strip_once(self):
+        env = Env()
+        env.boot()
+        self.assertEqual(self._y(env, "RXPTargetFrame.sections.enemy"), -28 - 10)
+        self.assertEqual(self._y(env, "RXPTargetFrame_EnemyButton1"), -44 - 10)
+        content = env.run("return HARNESS.targetsContent")
+        self.assertEqual(env.run("return RXPTargetFrame:GetHeight()"), content + 10)
+        env.run("OXPFUI.Reapply('t'); OXPFUI.Reapply('t')")
+        self.assertEqual(self._y(env, "RXPTargetFrame_EnemyButton1"), -44 - 10)
+        self.assertEqual(env.run("return RXPTargetFrame:GetHeight()"), content + 10)
+        # OpenXP lays out again: moved once more, from its own spot.
+        env.run("HARNESS.openxp.targeting:UpdateTargetFrame()")
+        self.assertEqual(self._y(env, "RXPTargetFrame_EnemyButton1"), -44 - 10)
+        self.assertEqual(env.run("return RXPTargetFrame:GetHeight()"), content + 10)
+
+    def test_collapse_button_folds_and_unfolds(self):
+        env = Env()
+        env.boot()
+        btn = "RXPTargetFrame_title.oxpfuiCollapse"
+        self.assertIs(env.run(f"return {btn}:IsShown() and not {btn}.plus"), True)
+        env.run(f"{btn}:GetScript('OnClick')({btn})")
+        self.assertIs(env.run("return OXPFUIDB.targetsCollapsed"), True)
+        self.assertEqual(env.run("return RXPTargetFrame:GetHeight()"), 34)
+        self.assertIs(env.run("return RXPTargetFrame_EnemyButton1:IsShown()"), False)
+        self.assertIs(env.run("return RXPTargetFrame.sections.enemy:IsShown()"), False)
+        self.assertIs(env.run("return RXPTargetFrame.oxpfuiBands.targetsSection_enemy:IsShown()"), False)
+        self.assertIs(env.run(f"return {btn}.plus"), True)
+        # OpenXP rebuilding while folded keeps it folded.
+        env.run("HARNESS.openxp.targeting:UpdateTargetFrame()")
+        self.assertIs(env.run("return RXPTargetFrame_EnemyButton1:IsShown()"), False)
+        env.run(f"{btn}:GetScript('OnClick')({btn})")
+        self.assertIs(env.run("return OXPFUIDB.targetsCollapsed"), False)
+        self.assertIs(env.run("return RXPTargetFrame_EnemyButton1:IsShown()"), True)
+        self.assertEqual(env.run("return RXPTargetFrame:GetHeight()"),
+                         env.run("return HARNESS.targetsContent") + 10)
+
+    def test_fold_is_saved_and_needs_no_reload(self):
+        env = Env(db={"targetsCollapsed": True})
+        env.boot()
+        self.assertEqual(env.run("return RXPTargetFrame:GetHeight()"), 34)
+        self.assertIs(env.run("return OXPFUI.Settings.Get('targetsCollapsed').reload"), False)
+
+    def test_rows_still_target_after_the_move(self):
+        env = Env()
+        env.boot()
+        self.assertEqual(env.run("return RXPTargetFrame_EnemyButton1:GetAttribute('macrotext')"),
+                         "/targetexact Forest Lurker")
+
+
 class PinQuestTargets(unittest.TestCase):
     """Quest Targets pinned to the guide (TargetsDock.lua)."""
 
@@ -672,8 +727,12 @@ class TitleCaseHeadings(unittest.TestCase):
         self.assertEqual(env.run("return HARNESS.cardBits.upNext.label:GetText()"), "Up Next")
         env.run("HARNESS.cardBits.blocks[1].title:SetText('|cFF9EA3B3ALONG THE WAY:|r Kill things'); "
                 "OXPFUI.Reapply('t')")
+        # Exception 9: the prefix becomes a section heading over the step.
         self.assertEqual(env.run("return HARNESS.cardBits.blocks[1].title:GetText()"),
-                         "|cFF9EA3B3Along the Way:|r Kill things")
+                         "Kill things")
+        self.assertEqual(env.run("local b = HARNESS.cardBits.blocks[1]; "
+                                 "return b.oxpfuiHeading:GetText(), b.oxpfuiHeading:IsShown()"),
+                         ("Along the Way", True))
 
     def test_up_next_line_is_centred_on_the_label(self):
         env = Env()
@@ -689,19 +748,19 @@ class TitleCaseHeadings(unittest.TestCase):
 class QuestTargetsContainer(unittest.TestCase):
     """Quest Targets in the tracker's container look."""
 
-    def test_header_band_title_case_and_no_wash(self):
+    def test_title_strip_like_the_card_title_case_and_no_wash(self):
         env = Env(db={"frameStyle": "flareui"})
         env.boot()
         self.assertEqual(env.run("return RXPTargetFrame_title.text:GetText()"), "Quest Targets")
-        bands = "RXPTargetFrame.oxpfuiBands"
-        self.assertEqual(env.run(f"local _,_,_,a = {bands}.targetsHeader.fill:GetColorTexture(); return a"), 0.35)
-        for key in ("targetsHeaderTop", "targetsHeaderBottom"):
-            self.assertIs(env.run(f"return {bands}.{key}.oxpfuiStrip.L:IsShown()"), True, key)
+        # One header for every window: the card's title strip.
+        self.assertIs(env.run("return RXPTargetFrame.oxpfuiBands.title.oxpfuiStrip.L:IsShown()"), True)
+        self.assertIsNone(env.run("return RXPTargetFrame.oxpfuiBands.targetsHeader"))
+        # The title sits on the strip, inset like the tracker's title.
         self.assertEqual(env.run("""
-          local b = RXPTargetFrame.oxpfuiBands.targetsHeaderBottom
-          local pt, rel, relPt = b:GetPoint(1)
-          return pt, rel == RXPTargetFrame_title, relPt
-        """), ("TOP", True, "BOTTOM"))
+          local t = RXPTargetFrame_title.text
+          local pt, rel, rpt, x = t:GetPoint(1)
+          return pt, rel == RXPTargetFrame.oxpfuiBands.title, rpt, x
+        """), ("LEFT", True, "LEFT", 6))
 
     def test_section_labels_title_case_on_a_fading_shade(self):
         env = Env(db={"frameStyle": "flareui"})

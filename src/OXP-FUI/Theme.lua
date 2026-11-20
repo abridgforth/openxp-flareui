@@ -341,9 +341,14 @@ function theme.ApplyScrollBar(frame, opts)
   local box = theme.C.BOX
   chrome.track:SetColorTexture(box[1], box[2], box[3], 0.25)
   chrome.thumb:SetColorTexture(box[1], box[2], box[3], 1)
+  -- opts.top / opts.bottom: the track's ends, in from the frame's edges
+  -- (default: under a list's title row, above its bottom padding).
+  local top = (opts and opts.top) or 30
+  local bottom = (opts and opts.bottom) or 8
+  local right = (opts and opts.right) or 6
   chrome.track:ClearAllPoints()
-  chrome.track:SetPoint("TOPRIGHT", rf, "TOPRIGHT", -6, -30)
-  chrome.track:SetPoint("BOTTOMRIGHT", rf, "BOTTOMRIGHT", -6, 8)
+  chrome.track:SetPoint("TOPRIGHT", rf, "TOPRIGHT", -right, -top)
+  chrome.track:SetPoint("BOTTOMRIGHT", rf, "BOTTOMRIGHT", -right, bottom)
 
   local fraction, visibleRatio, scrollable = 0, 1, false
   if opts and opts.state then
@@ -358,7 +363,7 @@ function theme.ApplyScrollBar(frame, opts)
   if visibleRatio < 0.05 then visibleRatio = 0.05 elseif visibleRatio > 1 then visibleRatio = 1 end
 
   -- list body height: the frame minus its title row and bottom padding
-  local trackHeight = (rf:GetHeight() or 0) - 38
+  local trackHeight = (rf:GetHeight() or 0) - top - bottom
   if trackHeight < 16 then trackHeight = 16 end
   local thumbHeight = trackHeight * visibleRatio
   if thumbHeight < 16 then thumbHeight = 16 end
@@ -909,6 +914,95 @@ function theme.ApplyWindow(frame, opts)
     end
   end
   return drawn, border
+end
+
+-- FlareUI's header box button (ObjectiveTracker.lua CreateBoxButton, MIT):
+-- a chamfered bronze outline on a near-black fill, with a minus that a stem
+-- turns into a plus; lit bronze while pointed at. Drawn pixel-exact.
+--   size: side in UI units (FlareUI's header button: 12)
+-- Returns the button; b:SetPlus(bool) switches the glyph.
+local function pixelSize(frame)
+  local factor = PixelUtil and PixelUtil.GetPixelToUIUnitFactor and PixelUtil.GetPixelToUIUnitFactor()
+  local scale = frame.GetEffectiveScale and frame:GetEffectiveScale()
+  if not (factor and factor > 0 and factor < math.huge and scale and scale > 0) then return 1 end
+  return factor / scale
+end
+
+function theme.BoxButton(parent, size)
+  local b = CreateFrame("Button", nil, parent)
+  b:SetSize(size, size)
+  local chamfer = size >= 16 and 3 or 2
+  local function Tex(layer)
+    local t = b:CreateTexture(nil, layer)
+    if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false) end
+    if t.SetTexelSnappingBias then t:SetTexelSnappingBias(0) end
+    return t
+  end
+  b.edges = { Tex("ARTWORK"), Tex("ARTWORK"), Tex("ARTWORK"), Tex("ARTWORK") }
+  b.steps, b.fill = {}, {}
+  b.dash, b.stem = Tex("ARTWORK"), Tex("ARTWORK")
+  function b:Layout()
+    local px = pixelSize(self)
+    local n = math.max(chamfer * 2 + 4, math.floor(size / px + 0.5))
+    if n % 2 == 1 then n = n + 1 end
+    local c = chamfer
+    local function Place(t, x, y, w, h)
+      t:ClearAllPoints()
+      t:SetPoint("TOPLEFT", self, "TOPLEFT", x * px, -y * px)
+      t:SetSize(w * px, h * px)
+      t:Show()
+    end
+    self:SetSize(n * px, n * px)
+    local e = self.edges
+    Place(e[1], c, 0, n - 2 * c, 1)
+    Place(e[2], c, n - 1, n - 2 * c, 1)
+    Place(e[3], 0, c, 1, n - 2 * c)
+    Place(e[4], n - 1, c, 1, n - 2 * c)
+    local i = 0
+    for k = 1, c - 1 do
+      for _, xy in ipairs({ { k, c - k }, { n - 1 - k, c - k }, { k, n - 1 - (c - k) },
+                            { n - 1 - k, n - 1 - (c - k) } }) do
+        i = i + 1
+        local t = self.steps[i]
+        if not t then t = Tex("ARTWORK"); self.steps[i] = t end
+        Place(t, xy[1], xy[2], 1, 1)
+      end
+    end
+    for j = i + 1, #self.steps do self.steps[j]:Hide() end
+    for k = 1, c do
+      local t = self.fill[k]
+      if not t then
+        t = Tex("BACKGROUND")
+        t:SetColorTexture(0, 0, 0, 0.85)
+        self.fill[k] = t
+      end
+      local inset = c - k + 1
+      Place(t, k, inset, n - 2 * k, n - 2 * inset)
+    end
+    local arm = math.floor(n * 0.5 + 0.5)
+    if (n - arm) % 2 == 1 then arm = arm + 1 end
+    Place(self.dash, (n - arm) / 2, (n - 2) / 2, arm, 2)
+    Place(self.stem, (n - 2) / 2, (n - arm) / 2, 2, arm)
+    if self.plus then self.stem:Show() else self.stem:Hide() end
+    self:Paint(self.lit)
+  end
+  function b:Paint(lit)
+    self.lit = lit
+    local c = lit and theme.C.BOX_LIT or theme.C.BOX
+    for _, t in ipairs(self.edges) do t:SetColorTexture(c[1], c[2], c[3], 1) end
+    for _, t in ipairs(self.steps) do t:SetColorTexture(c[1], c[2], c[3], 1) end
+    self.dash:SetColorTexture(c[1], c[2], c[3], 1)
+    self.stem:SetColorTexture(c[1], c[2], c[3], 1)
+  end
+  function b:SetPlus(plus)
+    self.plus = plus and true or false
+    if self.plus then self.stem:Show() else self.stem:Hide() end
+  end
+  b:HookScript("OnEnter", function(self) self:Paint(true) end)
+  b:HookScript("OnLeave", function(self) self:Paint(false) end)
+  b:HookScript("OnShow", function(self) self:Layout() end)
+  b:Layout()
+  return b
 end
 
 OXPFUI.theme = theme

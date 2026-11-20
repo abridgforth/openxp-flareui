@@ -37,6 +37,18 @@
 --      under the step list while that is open.
 --   7. Card header (Card.lua): the zone text starts where OpenXP's accent dot
 --      was (the dot is hidden) and is cut with "..." before "Step n / n".
+--   8. Card height (CardLayout.lua): the card is never taller than the room
+--      between the docked tracker (or its own top) and the screen bottom,
+--      one dock gap from each; a smaller dragged height is kept. Steps that
+--      don't fit scroll inside the card (OpenXP's body in an OXP-FUI scroll
+--      frame; Up Next held above the toolbar).
+--   9. Step blocks (CardLayout.lua): the /oxpfui mock on the real card: a
+--      14px kind icon replaces the 34px badge and "#n"; title, objectives
+--      and tips reflow into the freed width; "Along the Way" becomes a
+--      section heading; blocks re-stack with their new heights.
+--  10. Quest Targets window (SkinTargets.lua): the card's title strip as
+--      its header, OpenXP's labels and rows moved 10px down under it (the
+--      window 10px taller), and a box button that folds it to its header.
 
 local ADDON_NAME, OXPFUI = ...
 

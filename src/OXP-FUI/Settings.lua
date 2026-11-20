@@ -144,6 +144,9 @@ Settings.Define { key = "matchTrackerWidth", kind = "toggle", default = false, r
 Settings.Define { key = "pinTargets", kind = "choice", default = "off",
                   choices = { "off", "below", "side" }, reload = false }
 
+-- Quest Targets folded to its header (the box button on the window itself).
+Settings.Define { key = "targetsCollapsed", kind = "toggle", default = false, reload = false }
+
 -- -------------------------------------------------------------------------
 -- Defaults, drafts, commit
 -- -------------------------------------------------------------------------
@@ -263,6 +266,22 @@ function Settings.EndPreview()
   OXPFUI.db = OXPFUI.savedDb
   Settings.ApplyLive("settings preview cancelled")
   return true
+end
+
+-- Change one no-reload setting from a control outside the settings window
+-- (a window's own collapse button): saved at once, shown at once, and kept
+-- in a running preview too. Settings that need a reload go through Commit.
+function Settings.Set(key, value, reason)
+  local def = byKey[key]
+  assert(def, "OXP-FUI: unknown setting " .. tostring(key))
+  local saved = Settings.Saved()
+  local old = Settings.Read(saved, key)
+  if old == nil then old = def.default end
+  assert(not Settings.NeedsReload(def, old, value),
+    "OXP-FUI: " .. key .. " needs a reload; use Settings.Commit")
+  Settings.Write(saved, key, value)
+  if OXPFUI.db and OXPFUI.db ~= saved then Settings.Write(OXPFUI.db, key, value) end
+  Settings.ApplyLive(reason or ("setting " .. key))
 end
 
 -- Write the draft into the saved settings; re-apply them; reload the UI if

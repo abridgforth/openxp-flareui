@@ -14,8 +14,19 @@
 --   * target rows      — name in light grey body text, keybind hint dim,
 --                        the 2px class strip recoloured to the bronze accent
 --
--- What never changes: positions and sizes, icons/portraits, highlight
--- textures, click attributes, scripts and keybindings.
+-- What never changes: icons/portraits, highlight textures, click
+-- attributes, scripts and keybindings.
+--
+-- Layout exception 10 (Core.lua), one window model with the card:
+--   * the header is the card's: the tracker's title strip across the top
+--     (theme.ApplyWindow, headerStyle "strip"), the title and keybind hint
+--     centred on it, and the bottom strip on a bordered frame;
+--   * OpenXP's section labels and rows move down by SHIFT so they start
+--     under the strip, and the window grows by the same amount;
+--   * a FlareUI box button (minus / plus) folds the window to its header
+--     (setting targetsCollapsed; rows hide, the height is the header's).
+-- All of it runs only out of combat (secure = true), like OpenXP's own
+-- rebuilds; a click in combat is saved and shown when combat ends.
 --
 -- The row buttons are SECURE frames (SecureActionButtonTemplate macro
 -- buttons, keybound), so this skin registers with secure = true: the engine
@@ -42,6 +53,117 @@ local function StyleRow(ctx, raw)
   theme.ApplyText(btn.key, "body", "DIM")
 end
 
+local A = theme.ART
+local SHIFT = 10                     -- OpenXP's content starts at 28; the strip ends at 30
+local COLLAPSED_H = A.HEADER + 4     -- the strip and 3px under it, as the tracker minimized
+
+-- Move a region down by SHIFT once per OpenXP layout: OpenXP re-anchors on
+-- every rebuild (ResizeTargetsFrame), a re-apply alone must not move it again.
+local function shiftDown(region)
+  if not (region and region.GetPoint and region.GetNumPoints) then return end
+  local n = region:GetNumPoints()
+  if n == 0 then return end
+  local pts = {}
+  for i = 1, n do pts[i] = { region:GetPoint(i) } end
+  local first = pts[1][5]
+  if region.oxpfuiShiftY ~= nil and first == region.oxpfuiShiftY then return end
+  region:ClearAllPoints()
+  for _, p in ipairs(pts) do
+    region:SetPoint(p[1], p[2], p[3], p[4] or 0, (p[5] or 0) - SHIFT)
+  end
+  region.oxpfuiShiftY = (first or 0) - SHIFT
+end
+
+local function collapsed() return (OXPFUI.db or {}).targetsCollapsed == true end
+
+local function rows(tf)
+  local out = {}
+  for _, listName in ipairs({ "enemyTargetButtons", "friendlyTargetButtons" }) do
+    if type(tf[listName]) == "table" then
+      for _, raw in ipairs(tf[listName]) do out[#out + 1] = theme.RealFrame(raw) end
+    end
+  end
+  return out
+end
+
+-- The box button on the header strip's right end.
+local function collapseButton(rf, rt)
+  local b = rt.oxpfuiCollapse
+  if not b then
+    b = theme.BoxButton(rt, 12)
+    b:SetScript("OnClick", function()
+      OXPFUI.Settings.Set("targetsCollapsed", not collapsed(), "quest targets folded")
+      if not collapsed() then
+        -- OpenXP shows its rows and sizes the window again; the skin's hook
+        -- on UpdateTargetFrame moves them under the strip.
+        local openxp = OXPFUI.GetOpenXP and OXPFUI.GetOpenXP()
+        local t = openxp and openxp.targeting
+        if t and t.UpdateTargetFrame and not InCombatLockdown() then
+          pcall(t.UpdateTargetFrame, t)
+        end
+      end
+    end)
+    b:SetScript("OnEnter", function(self)
+      self:Paint(true)
+      if GameTooltip then
+        GameTooltip:SetOwner(self, "ANCHOR_TOPRIGHT")
+        GameTooltip:SetText(collapsed() and OXPFUI.L.targetsExpand or OXPFUI.L.targetsCollapse)
+        GameTooltip:Show()
+      end
+    end)
+    b:SetScript("OnLeave", function(self)
+      self:Paint(false)
+      if GameTooltip then GameTooltip:Hide() end
+    end)
+    rt.oxpfuiCollapse = b
+  end
+  b:SetPlus(collapsed())
+  b:Show()
+  return b
+end
+
+-- Exception 10: header, shift, fold. rf/rt: raw window and title frame.
+local function layoutWindow(rf, rt, tf)
+  local band = theme.Band(rf, "title")
+  -- The title frame covers the whole strip (drag handle + button home).
+  rt:ClearAllPoints()
+  rt:SetPoint("TOPLEFT", rf, "TOPLEFT", 1, -1)
+  rt:SetPoint("TOPRIGHT", rf, "TOPRIGHT", -1, -1)
+  rt:SetHeight(A.HEADER)
+  local btn = collapseButton(rf, rt)
+  btn:ClearAllPoints()
+  btn:SetPoint("RIGHT", band, "RIGHT", -(A.PAD - A.HEADER_INSET), 0)
+  local text = theme.RealFrame(rt.text)
+  if text then
+    text:ClearAllPoints()
+    text:SetPoint("LEFT", band, "LEFT", A.PAD - A.HEADER_INSET, 0)
+  end
+  local hint = theme.RealFrame(rt.keyHint)
+  if hint then
+    hint:ClearAllPoints()
+    hint:SetPoint("RIGHT", btn, "LEFT", -6, 0)
+  end
+
+  local list = rows(tf)
+  if collapsed() then
+    for _, fs in pairs(tf.sections or {}) do
+      local r = theme.RealFrame(fs)
+      if r and r.Hide then r:Hide() end
+    end
+    for _, b in ipairs(list) do if b.Hide then b:Hide() end end
+    rf:SetHeight(COLLAPSED_H)
+    rf.oxpfuiShiftH = nil
+    return
+  end
+  for _, fs in pairs(tf.sections or {}) do shiftDown(theme.RealFrame(fs)) end
+  for _, b in ipairs(list) do shiftDown(b) end
+  local h = rf:GetHeight() or 0
+  if rf.oxpfuiShiftH == nil or math.abs(h - rf.oxpfuiShiftH) >= 0.5 then
+    rf:SetHeight(h + SHIFT)
+    rf.oxpfuiShiftH = h + SHIFT
+  end
+end
+
 OXPFUI.RegisterSkin{
   name = "targets",
   windows = { "targets" },
@@ -65,7 +187,8 @@ OXPFUI.RegisterSkin{
         if tc ~= text:GetText() then text:SetText(tc) end
       end
       if rf and rt and rf.GetChildren then
-        theme.ApplyWindow(rf, { header = rt, headerStyle = "band", key = "targetsHeader" })
+        -- One header for every window: the card's title strip.
+        theme.ApplyWindow(rf, { header = rt, headerStyle = "strip", foot = not collapsed() })
       end
       if title.keyHint then
         theme.ApplyText(title.keyHint, "body", "DIM")
@@ -96,6 +219,17 @@ OXPFUI.RegisterSkin{
       if type(tf[listName]) == "table" then
         for _, raw in ipairs(tf[listName]) do
           StyleRow(ctx, raw)
+        end
+      end
+    end
+    local rt = theme.RealFrame(title)
+    if rf and rt and rf.SetHeight then
+      local ok, err = pcall(layoutWindow, rf, rt, tf)
+      if not ok then ctx.Skip("targets layout: " .. tostring(err)) end
+      -- the fold hid the labels: their heading shades go with them
+      if type(tf.sections) == "table" then
+        for key, fs in pairs(tf.sections) do
+          theme.ApplySectionHeading(rf, theme.RealFrame(fs), "targetsSection_" .. tostring(key))
         end
       end
     end

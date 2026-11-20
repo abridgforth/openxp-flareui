@@ -58,6 +58,17 @@ local function baseMethods(kind)
     GetObjectType = function(self) return self.__type end,
     IsObjectType = function(self, t) return self.__type == t end,
     GetParent = function(self) return self.__parent end,
+    SetParent = function(self, parent)
+      record(self, "SetParent", parent)
+      local old = self.__parent
+      if old and old.__children then
+        for i, c in ipairs(old.__children) do
+          if c == self then table.remove(old.__children, i) break end
+        end
+      end
+      self.__parent = parent
+      if parent and parent.__children then parent.__children[#parent.__children + 1] = self end
+    end,
     IsProtected = function(self) return self.__protected == true end,
 
     -- Real API: returns child *frames* only (never textures/fontstrings).
@@ -312,6 +323,8 @@ local function newFrame(frameType, name, parent, template)
       self.__scrollChild = child
     end
     f.GetScrollChild = function(self) return self.__scrollChild end
+    f.SetVerticalScroll = function(self, v) record(self, "SetVerticalScroll", v); self.__vscroll = v end
+    f.GetVerticalScroll = function(self) return self.__vscroll or 0 end
   end
 
   -- StatusBar: the fill is an own texture object, like the client's

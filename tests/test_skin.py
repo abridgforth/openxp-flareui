@@ -922,10 +922,9 @@ class QuestTargets(unittest.TestCase):
 
     def test_no_call_is_made_on_any_targets_frame_while_in_combat(self):
         env = Env()
-        family = ("RXPTargetFrame", "RXPTargetFrame_title",
-                  "RXPTargetFrame_EnemyButton1", "RXPTargetFrame_EnemyButton2",
-                  "RXPTargetFrame_FriendlyButton1",
-                  "OpenXPTargetMobs", "OpenXPTargetNPCs")
+        # RXPTargetFrame, its title and rows: layout exception 10
+        # (test_settings.QuestTargetsWindow); nothing else moves.
+        family = ("OpenXPTargetMobs", "OpenXPTargetNPCs")
         # Baseline: everything the fake OpenXP itself did while building.
         before = {f: env.calls_made_on(f) for f in family}
         env.set_combat(True)
@@ -1028,10 +1027,9 @@ class QuestTargets(unittest.TestCase):
         env = Env()
         layout = ("SetPoint", "SetSize", "SetWidth", "SetHeight", "SetScale",
                   "SetAllPoints", "ClearAllPoints")
-        family = ("RXPTargetFrame", "RXPTargetFrame_title",
-                  "RXPTargetFrame_EnemyButton1", "RXPTargetFrame_EnemyButton2",
-                  "RXPTargetFrame_FriendlyButton1",
-                  "OpenXPTargetMobs", "OpenXPTargetNPCs")
+        # RXPTargetFrame, its title and rows: layout exception 10
+        # (test_settings.QuestTargetsWindow); nothing else moves.
+        family = ("OpenXPTargetMobs", "OpenXPTargetNPCs")
         before = {(f, m): env.calls_made_on(f, m) for f in family for m in layout}
         env.boot()
         env.run("HARNESS.openxp:RenderFrame()")

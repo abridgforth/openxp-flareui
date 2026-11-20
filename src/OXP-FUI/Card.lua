@@ -591,6 +591,7 @@ local function insetStepProgress(rf, header, ctx, underStrip)
   own:SetPoint("TOPRIGHT", hf, "BOTTOMRIGHT", -BAR_INSET, drop)
   own:SetColorTexture(1, 1, 1, 0.08)
   track:SetAlpha(0)
+  rf.oxpfuiProgressTrack = track -- the body hangs from it (CardLayout)
 
   if not fill then return end
   -- OpenXP paints the fill once, in its blue, as a solid colour texture (no
@@ -720,6 +721,14 @@ local function Apply(ctx)
   if cardModule and cardModule.xpStrip then
     skinXPStrip(cardModule.xpStrip)
     if bar then insetXPStrip(cardModule.xpStrip, bar, cardModule) end
+  end
+  -- Exceptions 8 and 9: step blocks per the mock, then the card's height.
+  if cardModule and OXPFUI.CardLayout then
+    local okl, err = pcall(OXPFUI.CardLayout.Apply, {
+      rf = rf, card = cardModule, upNext = upNext, bar = bar,
+      track = rf.oxpfuiProgressTrack,
+    })
+    if not okl then ctx.Skip("card layout: " .. tostring(err)) end
   end
   if mini then skinMini(ctx.Guard(mini)) end
   if list then skinStepList(ctx.Guard(list), openxp) end

@@ -42,6 +42,27 @@ deliberate, re-applied after every OpenXP refresh, and listed here and in
    Targets window is anchored to the guide card (see below).
 7. **Card header**: the zone text starts where OpenXP's accent dot was (the
    dot is hidden) and is cut off with "…" before "Step n / n".
+8. **Card height**: the card never grows past the room it has, keeping the
+   dock gap both under the FlareUI tracker and above the screen's bottom
+   (undocked: between its own top and the screen's bottom). OpenXP sizes
+   the card to its content and the game then pushes a too-tall card up over
+   the tracker; OXP-FUI sizes it back down on every refresh and whenever the
+   tracker grows or shrinks. A height you drag the card to is kept, also
+   when it is smaller than the content. Steps that don't fit scroll inside
+   the card: the mouse wheel scrolls the steps first; at the top, scrolling
+   up opens OpenXP's earlier-steps history as before, and with the history
+   open, scrolling down closes it first.
+9. **Step blocks**: the `/oxpfui mock` layout on the card. A small kind icon
+   in front of the title replaces OpenXP's 34px badge and step number;
+   title, objectives and tips use the width that frees up, tips in the
+   smaller size; an "Along the Way" step gets a section heading with its
+   step number; the line between steps is a faint bronze hairline.
+10. **Quest Targets window**: the same header as the card (the tracker's
+    title strip), with OpenXP's sections moved 10 px down under it and the
+    window 10 px taller; a box button on the header folds the window to
+    its header and back (saved, no reload). Like OpenXP's own rebuilds,
+    this happens only out of combat; a fold clicked in combat shows when
+    combat ends.
 
 ## Install
 

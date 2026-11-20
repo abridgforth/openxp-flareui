@@ -191,6 +191,11 @@ local function hookTracker(tracker)
       Dock.Update("tracker resized")
     end)
   end
+  -- The tracker growing or shrinking (quests added, sections expanded)
+  -- changes the card's room under it (layout exception 8).
+  pcall(tracker.HookScript, tracker, "OnSizeChanged", function()
+    if OXPFUI.CardLayout then OXPFUI.CardLayout.Refit() end
+  end)
 end
 
 -- ---------------------------------------------------------------------------

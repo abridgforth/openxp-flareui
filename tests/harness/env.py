@@ -19,7 +19,7 @@ LUA_DIR = pathlib.Path(__file__).resolve().parent / "lua"
 ADDON_FILES = ["Core.lua", "Settings.lua", "Locale.lua", "Theme.lua",
                "FlareStyle.lua", "Engine.lua",
                "Docking.lua", "TargetsDock.lua",
-               "ArrowSkin.lua", "Card.lua", "SkinTargets.lua",
+               "ArrowSkin.lua", "CardLayout.lua", "Card.lua", "SkinTargets.lua",
                "SkinTracker.lua", "SkinWindows.lua", "SkinTooltips.lua",
                "WelcomeFeedback.lua", "SettingsPanel.lua", "Mock.lua"]
 

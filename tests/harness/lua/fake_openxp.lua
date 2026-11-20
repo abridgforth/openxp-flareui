@@ -259,7 +259,7 @@ local list = nil
 -- must find them by walking; tests read state through these).
 HARNESS.cardBits = {
   header = header, bar = bar, upNext = upNext, mini = mini,
-  blocks = blocks, hist = hist, xpStrip = xpStrip, progress = progress,
+  blocks = blocks, body = body, hist = hist, xpStrip = xpStrip, progress = progress,
   list = nil, -- set by card.BuildStepList
 }
 local cardBits = HARNESS.cardBits
@@ -351,6 +351,76 @@ function card.UpdateXP()
   local w = xpStrip:GetWidth()
   xpStrip.fill:SetWidth(math.max(1, w * 0.4))
   xpStrip.rested:SetWidth(math.max(1, w * 0.6))
+end
+
+-- OpenXPCard.lua card.Refresh geometry (1.3.66), for the layout and fit
+-- tests: body under the progress track, blocks stacked in it (badge 34px at
+-- PAD,-10; title off the badge's right; lines under the title), Up next
+-- hung off the body, the 38px bar at the bottom, and the card as tall as
+-- its content (or the saved height, whichever is larger).
+-- OpenXPCard.lua: the wheel scrolls the earlier-steps history
+-- (card.ScrollHistory: up shows older steps, down returns).
+HARNESS.histWheel = {}
+card:EnableMouseWheel(true)
+card:SetScript("OnMouseWheel", function(_, delta)
+  HARNESS.histWheel[#HARNESS.histWheel + 1] = delta
+  local m = HARNESS.openxp and HARNESS.openxp.card
+  if m then m.histOffset = math.max(0, (m.histOffset or 0) + delta) end
+end)
+
+function HARNESS.LayoutCard(opts)
+  opts = opts or {}
+  local PAD = 14
+  local W = card:GetWidth() or 300
+  local textWidth = W - PAD * 2 - 34 - 12
+  body:ClearAllPoints()
+  body:SetPoint("TOPLEFT", progressBg, "BOTTOMLEFT", 0, 0)
+  body:SetPoint("TOPRIGHT", progressBg, "BOTTOMRIGHT", 0, 0)
+  local y = 0
+  for i, b in ipairs(blocks) do
+    if i <= (opts.blocks or #blocks) then
+      b:ClearAllPoints()
+      b:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -y)
+      b:SetPoint("TOPRIGHT", body, "TOPRIGHT", 0, -y)
+      b:SetWidth(W - 2)
+      b.badge:SetSize(34, 34)
+      b.badge:ClearAllPoints()
+      b.badge:SetPoint("TOPLEFT", PAD, -10)
+      b.num:ClearAllPoints()
+      b.num:SetPoint("TOP", b.badge, "BOTTOM", 0, -4)
+      b.num:SetFont("Fonts\\ARIALN.TTF", 10, "")
+      b.num:SetText("#" .. (60 + i))
+      b.title:ClearAllPoints()
+      b.title:SetPoint("TOPLEFT", b.badge, "TOPRIGHT", 12, -1)
+      b.title:SetWidth(textWidth)
+      local by = 11 + 20 + 7
+      for _, line in ipairs(b.lines) do
+        line:ClearAllPoints()
+        line:SetPoint("TOPLEFT", b.title, "TOPLEFT", 0, -(by - 11))
+        line:SetPoint("RIGHT", b, "RIGHT", -PAD, 0)
+        line:SetHeight(16)
+        by = by + 16 + 7
+      end
+      local h = math.max(by + 4, 34 + 20 + 14) + (opts.extra or 0)
+      b:SetHeight(h)
+      b:Show()
+      y = y + h
+    else
+      b:Hide()
+    end
+  end
+  body:SetHeight(math.max(y, 1))
+  upNext:ClearAllPoints()
+  upNext:SetPoint("TOPLEFT", body, "BOTTOMLEFT", 0, -4)
+  upNext:SetPoint("TOPRIGHT", body, "BOTTOMRIGHT", 0, -4)
+  upNext:SetHeight(34)
+  bar:ClearAllPoints()
+  bar:SetHeight(38)
+  bar:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 1, 1)
+  bar:SetPoint("BOTTOMRIGHT", card, "BOTTOMRIGHT", -1, 1)
+  local content = 1 + 28 + 2 + y + 4 + 34 + 38 + 1
+  card:SetHeight(math.max(content, HARNESS.openxp and HARNESS.openxp.card.height or 0))
+  HARNESS.cardContent = content
 end
 
 local function refreshCard(force)
@@ -549,6 +619,41 @@ targetButton(tf.friendlyTargetButtons, "RXPTargetFrame_FriendlyButton1",
 -- The secure template runs the macro on click; the fake records it so tests
 -- can prove targeting still works after OXP-FUI restyles the rows.
 eb1:SetScript("OnClick", function() bump("RXPTargetFrame_EnemyButton1 click") end)
+
+-- Targeting.lua ResizeTargetsFrame / V1 visuals: the title strip 22px at
+-- the top (text LEFT 10, key hint RIGHT -10); y = OXP_HEAD_H (24) + 4; per
+-- section: the label at (11, -y), y + 16; rows at (1, -y), 24 each; y + 4;
+-- width 200, height y + 2. Run on every UpdateTargetFrame, before skins.
+function HARNESS.LayoutTargets()
+  tfTitle:ClearAllPoints()
+  tfTitle:SetPoint("TOPLEFT", tf, "TOPLEFT", 1, -1)
+  tfTitle:SetPoint("TOPRIGHT", tf, "TOPRIGHT", -1, -1)
+  tfTitle:SetHeight(22)
+  tfTitle.text:ClearAllPoints()
+  tfTitle.text:SetPoint("LEFT", tfTitle, "LEFT", 10, 0)
+  tfTitle.keyHint:ClearAllPoints()
+  tfTitle.keyHint:SetPoint("RIGHT", tfTitle, "RIGHT", -10, 0)
+  local y = 24 + 4
+  for _, pair in ipairs({ { "enemy", tf.enemyTargetButtons }, { "friendly", tf.friendlyTargetButtons } }) do
+    local label = tf.sections[pair[1]]
+    label:ClearAllPoints()
+    label:SetPoint("TOPLEFT", tf, "TOPLEFT", 11, -y)
+    label:Show()
+    y = y + 16
+    for _, btn in ipairs(pair[2]) do
+      btn:ClearAllPoints()
+      btn:SetPoint("TOPLEFT", tf, "TOPLEFT", 1, -y)
+      btn:SetPoint("TOPRIGHT", tf, "TOPRIGHT", -1, -y)
+      btn:SetHeight(24)
+      btn:Show()
+      y = y + 24
+    end
+    y = y + 4
+  end
+  tf:SetSize(200, y + 2)
+  HARNESS.targetsContent = y + 2
+end
+HARNESS.LayoutTargets()
 
 -- Other phase 2 panels (tracker / active-item / windows tickets) ----------------
 -- Active-item frame (ActiveItemFrame.lua 261-320): the frame, its title
@@ -1393,6 +1498,7 @@ addon.targeting = {
   UpdateTargetFrame = function()
     bump("targeting.UpdateTargetFrame")
     if InCombatLockdown() then return end
+    HARNESS.LayoutTargets()
     HARNESS.ApplyOpenXPLook()
   end,
   RenderTargetFrameBackground = function() bump("targeting.RenderTargetFrameBackground")
