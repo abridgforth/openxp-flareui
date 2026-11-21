@@ -22,8 +22,8 @@
 --    top and the screen's bottom. OpenXP makes the card as tall as its
 --    content on every refresh (OpenXPCard.lua: max(content, saved height)),
 --    and the game then pushes a too-tall card up to keep it on screen - over
---    the tracker. A height you drag the card to is honoured too, smaller
---    than the content or not. When the card is shorter than its content,
+--    the tracker. A height you drag the card to is its maximum, as FlareUI's
+--    tracker's max height: shorter content shrinks the card to fit. When the card is shorter than its content,
 --    the steps scroll inside it (the header, Up Next and the toolbar stay):
 --    OpenXP's body moves into an OXP-FUI scroll frame, and Up Next sits
 --    above the toolbar. The mouse wheel scrolls the steps; at the top, up
@@ -354,8 +354,12 @@ function CardLayout.Fit(p)
   local upH = (upNext and upNext.IsShown and upNext:IsShown()) and (upNext:GetHeight() or 0) or 0
   local content = 1 + 28 + 2 + histH + bodyH + 4 + upH + 38 + 1
 
-  local want = cardModule.height or content
-  if want > content and not cardModule.height then want = content end
+  -- As FlareUI's tracker: as tall as the content, up to a height you drag
+  -- it to (a maximum, not a fixed size) and up to the room it has. A
+  -- dragged height taller than the content left empty space above the
+  -- toolbar.
+  local want = content
+  if cardModule.height and cardModule.height < want then want = cardModule.height end
   local avail = room(rf)
   if not avail and not s.scrolling then return end -- not placed yet
   local h = want

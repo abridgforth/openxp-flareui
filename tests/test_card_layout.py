@@ -127,6 +127,19 @@ class CardHeight(unittest.TestCase):
         self.assertEqual(card_height(env), 220)
         self.assertTrue(scrolling(env))
 
+    def test_a_taller_dragged_height_is_a_maximum_not_a_size(self):
+        # FlareUI's tracker: as tall as its content up to its max height.
+        env = Env(flareui=True)
+        env.boot()
+        place(env, card_top=1000)
+        env.run("HARNESS.openxp.card.height = 900")
+        refresh(env, blocks=1)
+        self.assertFalse(scrolling(env))
+        self.assertLess(card_height(env), 900)
+        self.assertEqual(card_height(env), max(160, round(env.run(
+            "local s = HARNESS.cardBits; return 1 + 28 + 2 + s.body:GetHeight() + 4 "
+            "+ s.upNext:GetHeight() + 38 + 1"))))
+
     def test_room_again_restores_openxp_layout(self):
         env = Env(flareui=True)
         env.boot()

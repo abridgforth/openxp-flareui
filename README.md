@@ -48,8 +48,9 @@ deliberate, re-applied after every OpenXP refresh, and listed here and in
    (undocked: between its own top and the screen's bottom). OpenXP sizes
    the card to its content and the game then pushes a too-tall card up over
    the tracker; OXP-FUI sizes it back down on every refresh and whenever the
-   tracker grows or shrinks. A height you drag the card to is kept, also
-   when it is smaller than the content. Steps that don't fit scroll inside
+   tracker grows or shrinks. A height you drag the card to is its maximum,
+   like FlareUI's tracker height: the card is as tall as its steps up to
+   that height, so there is no empty space above the toolbar. Steps that don't fit scroll inside
    the card: the mouse wheel scrolls the steps first; at the top, scrolling
    up opens OpenXP's earlier-steps history as before, and with the history
    open, scrolling down closes it first.
@@ -159,6 +160,11 @@ sections, on the line where OpenXP draws its own faint separator above
 "Up next" and under the history band (OpenXP's line steps aside
 meanwhile). The step progress line is repainted in the title colour (gold
 in the Blizzard scheme).
+
+Dividers inside a window (above Up Next, above the toolbar, under the
+history) follow FlareUI's zone heading strips: centred, 14 px in from each
+side, with their end knobs reaching out toward the border. Only the header
+strip and the bottom strip sit on the border itself.
 
 Separators are drawn on the window itself, above its background, so an
 opaque background never covers them. On a framed window they follow

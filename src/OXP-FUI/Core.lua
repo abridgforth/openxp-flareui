@@ -40,7 +40,7 @@
 --      was (the dot is hidden) and is cut with "..." before "Step n / n".
 --   8. Card height (CardLayout.lua): the card is never taller than the room
 --      between the docked tracker (or its own top) and the screen bottom,
---      one dock gap from each; a smaller dragged height is kept. Steps that
+--      one dock gap from each; a dragged height is its maximum. Steps that
 --      don't fit scroll inside the card (OpenXP's body in an OXP-FUI scroll
 --      frame; Up Next held above the toolbar).
 --   9. Step blocks (CardLayout.lua): the /oxpfui mock on the real card: a

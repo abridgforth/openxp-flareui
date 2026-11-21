@@ -590,15 +590,50 @@ end
 -- `frame` inside its text padding, centred on `region`'s top or bottom edge.
 -- host (default frame): the frame the band belongs to, so the rule shows
 -- and hides with that section.
+-- How far `region`'s left edge is from `frame`'s left edge: from the
+-- screen when the game has placed both, else from region's own first
+-- anchor when that hangs from frame's left side, else 0.
+function theme.LeftOffset(region, frame)
+  local rl = region.GetLeft and region:GetLeft()
+  local fl = frame.GetLeft and frame:GetLeft()
+  if type(rl) == "number" and type(fl) == "number" then return rl - fl end
+  if region.GetPoint then
+    local ok, pt, rel, rpt, x = pcall(region.GetPoint, region, 1)
+    if ok and rel == frame and type(pt) == "string" and pt:find("LEFT")
+        and type(rpt) == "string" and rpt:find("LEFT") then
+      return x or 0
+    end
+  end
+  return 0
+end
+
+-- Lay `band` across `frame`, `inset` in from each side, at `region`'s top
+-- or bottom edge (edge "TOP" / "BOTTOM" / "BOTH"; dy moves the top edge
+-- up, and the bottom edge down for BOTH). Horizontal comes from frame,
+-- vertical from region, without mixing the two in one anchor: an anchor
+-- such as "TOP" also pins the band's centre to the region's centre, and
+-- with LEFT and RIGHT on the frame as well the game kept the centre and
+-- dropped the right edge, so dividers came out off centre.
+function theme.SpanAcross(band, frame, inset, region, edge, dy)
+  dy = dy or 0
+  local x = inset - theme.LeftOffset(region, frame)
+  band:ClearAllPoints()
+  if edge == "BOTH" then
+    band:SetPoint("TOPLEFT", region, "TOPLEFT", x, dy)
+    band:SetPoint("BOTTOMLEFT", region, "BOTTOMLEFT", x, -dy)
+  else
+    band:SetPoint("TOPLEFT", region, edge == "BOTTOM" and "BOTTOMLEFT" or "TOPLEFT", x, dy)
+  end
+  local w = frame.GetWidth and frame:GetWidth()
+  if type(w) == "number" and w > 2 * inset then band:SetWidth(w - 2 * inset) end
+end
+
 function theme.ApplySectionRule(frame, region, edge, key, host)
   local A = theme.ART
   local band = theme.Band(host or frame, key or "rule")
   if not (region and theme.StripsOn()) then theme.HideStrip(band) return false end
-  band:ClearAllPoints()
+  theme.SpanAcross(band, frame, A.PAD, region, edge == "BOTTOM" and "BOTTOM" or "TOP")
   band:SetHeight(1)
-  band:SetPoint("TOP", region, edge == "BOTTOM" and "BOTTOM" or "TOP")
-  band:SetPoint("LEFT", frame, "LEFT", A.PAD, 0)
-  band:SetPoint("RIGHT", frame, "RIGHT", -A.PAD, 0)
   local reach = theme.ArtReach(A.TITLE)
   return theme.PlaceStrip(band, A.TITLE, reach, reach, A.FOOT_BAND)
 end
@@ -611,11 +646,7 @@ function theme.ApplyHeadingStrip(frame, label, key, host)
   local A = theme.ART
   local band = theme.Band(host or frame, key or "heading")
   if not (label and theme.StripsOn()) then theme.HideStrip(band) return false end
-  band:ClearAllPoints()
-  band:SetPoint("TOP", label, "TOP")
-  band:SetPoint("BOTTOM", label, "BOTTOM")
-  band:SetPoint("LEFT", frame, "LEFT", A.PAD, 0)
-  band:SetPoint("RIGHT", frame, "RIGHT", -A.PAD, 0)
+  theme.SpanAcross(band, frame, A.PAD, label, "BOTH", 0)
   local reach = theme.ArtReach(A.HEADING) + A.TEXT - A.HEADING_IN
   return theme.PlaceStrip(band, A.HEADING, reach, reach)
 end
@@ -727,11 +758,8 @@ function theme.ApplyWindowTitleBar(frame)
   end
   bar.fill:SetColorTexture(0, 0, 0, 0.35)
   local rule = theme.Band(frame, "titlerule")
-  rule:ClearAllPoints()
+  theme.SpanAcross(rule, frame, A.HEADER_INSET, bar, "BOTTOM")
   rule:SetHeight(1)
-  rule:SetPoint("TOP", bar, "BOTTOM")
-  rule:SetPoint("LEFT", frame, "LEFT", A.HEADER_INSET, 0)
-  rule:SetPoint("RIGHT", frame, "RIGHT", -A.HEADER_INSET, 0)
   local reach = theme.ArtReach(A.TITLE)
   if not theme.PlaceStrip(rule, A.TITLE, reach, reach, A.FOOT_BAND) then
     -- no atlas: a plain bronze hairline
@@ -787,11 +815,8 @@ end
 local function rod(frame, region, edge, key, inset)
   local A = theme.ART
   local band = theme.Band(frame, key)
-  band:ClearAllPoints()
+  theme.SpanAcross(band, frame, inset, region, edge)
   band:SetHeight(1)
-  band:SetPoint("TOP", region, edge)
-  band:SetPoint("LEFT", frame, "LEFT", inset, 0)
-  band:SetPoint("RIGHT", frame, "RIGHT", -inset, 0)
   local reach = theme.ArtReach(A.TITLE)
   local drawn = theme.PlaceStrip(band, A.TITLE, reach, reach, A.FOOT_BAND)
   if not band.line then
@@ -820,11 +845,7 @@ function theme.ApplyHeaderBand(frame, header, key)
     return nil
   end
   if band.fill then band.fill:Show() end
-  band:ClearAllPoints()
-  band:SetPoint("TOP", header, "TOP")
-  band:SetPoint("BOTTOM", header, "BOTTOM")
-  band:SetPoint("LEFT", frame, "LEFT", 2, 0)
-  band:SetPoint("RIGHT", frame, "RIGHT", -2, 0)
+  theme.SpanAcross(band, frame, 2, header, "BOTH")
   if not band.fill then
     band.fill = art(band, -4)
     band.fill:SetAllPoints(band)
@@ -848,11 +869,7 @@ function theme.ApplySectionHeading(frame, label, key)
     return false
   end
   band:Show()
-  band:ClearAllPoints()
-  band:SetPoint("TOP", label, "TOP", 0, 3)
-  band:SetPoint("BOTTOM", label, "BOTTOM", 0, -3)
-  band:SetPoint("LEFT", frame, "LEFT", 3, 0)
-  band:SetPoint("RIGHT", frame, "RIGHT", -3, 0)
+  theme.SpanAcross(band, frame, 3, label, "BOTH", 3)
   if not band.fill then
     band.fill = art(band, -4)
     band.fill:SetAllPoints(band)

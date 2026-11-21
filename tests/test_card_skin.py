@@ -817,7 +817,7 @@ class SectionRules(unittest.TestCase):
           local pt, rel, relPt = b:GetPoint(1)
           return pt, rel == u.sep, relPt, b.oxpfuiStrip.L:IsShown()
         """)
-        self.assertEqual(band, ("TOP", True, "TOP", True))
+        self.assertEqual(band, ("TOPLEFT", True, "TOPLEFT", True))
         self.assertEqual(env.run("return HARNESS.cardBits.upNext.sep:GetAlpha()"), 0)
 
     def test_history_rule_sits_at_the_end_of_the_history_band(self):
@@ -827,7 +827,27 @@ class SectionRules(unittest.TestCase):
           local h = HARNESS.cardBits.hist
           local pt, rel, relPt = h.oxpfuiBands.history:GetPoint(1)
           return pt, rel == h, relPt
-        """), ("TOP", True, "BOTTOM"))
+        """), ("TOPLEFT", True, "BOTTOMLEFT"))
+
+    def test_rules_are_centred_across_the_card(self):
+        # A single anchor on the region (its height) plus an explicit width:
+        # no centre point that could pull the rule off centre.
+        env = Env(db={"frameStyle": "flareui"})
+        env.boot()
+        env.run("""
+          OpenXPCard.GetLeft = function() return 100 end
+          HARNESS.cardBits.upNext.sep.GetLeft = function() return 115 end
+          OXPFUI.Reapply('t')
+        """)
+        res = env.run("""
+          local b = HARNESS.cardBits.upNext.oxpfuiBands.upnext
+          local _, _, _, x = b:GetPoint(1)
+          return b:GetNumPoints(), x, b:GetWidth(), OpenXPCard:GetWidth()
+        """)
+        n, x, w, cw = res
+        self.assertEqual(n, 1)
+        self.assertEqual(x, 14 - 15)       # band left = card left + 14
+        self.assertEqual(w, cw - 28)       # band right = card right - 14
 
 
 class Toolbar(unittest.TestCase):
