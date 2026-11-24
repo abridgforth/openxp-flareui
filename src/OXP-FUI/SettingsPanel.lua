@@ -238,7 +238,7 @@ local function buildPanel()
   local mismatch = OXPFUI.VersionMismatch and OXPFUI.VersionMismatch()
   if mismatch then
     f.versionNote = fontString(f.content, "GameFontRedSmall",
-      L.versionNote:format(mismatch, OXPFUI.testedOpenXP))
+      L.versionNote:format(mismatch, OXPFUI.TestedOpenXP()))
     f.versionNote:SetPoint("TOPLEFT", f.subtitle, "BOTTOMLEFT", 0, -2)
     -- Pinned to the pane's right edge so a long note wraps, not overflows.
     f.versionNote:SetPoint("RIGHT", f, "RIGHT", -LEFT, 0)

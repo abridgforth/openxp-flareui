@@ -21,7 +21,7 @@ ADDON_FILES = ["Core.lua", "Settings.lua", "Locale.lua", "Theme.lua",
                "Docking.lua", "TargetsDock.lua",
                "ArrowSkin.lua", "CardLayout.lua", "Card.lua", "SkinTargets.lua",
                "SkinTracker.lua", "SkinWindows.lua", "SkinTooltips.lua",
-               "WelcomeFeedback.lua", "SettingsPanel.lua", "Mock.lua"]
+               "WelcomeFeedback.lua", "OpenXP2.lua", "SettingsPanel.lua", "Mock.lua"]
 
 
 def _lua_literal(value) -> str:
@@ -59,7 +59,8 @@ class Env:
 
     def __init__(self, *, openxp: bool = True, openxp_version: str = "1.3.48",
                  db: dict | None = None, load_addon: bool = True,
-                 flareui: bool = False, flareui_late: bool = False):
+                 flareui: bool = False, flareui_late: bool = False,
+                 openxp2: bool = False):
         self.lua = lupa.LuaRuntime(unpack_returned_tuples=True)
         self._eval_file(str(LUA_DIR / "wow_api.lua"))
         self._eval_file(str(LUA_DIR / "fake_blizzard_ui.lua"))
@@ -68,7 +69,10 @@ class Env:
         self.run(f"HARNESS.addonMetadata[{_lua_literal('OXP-FUI')}] = "
                  f"{{ Title = {_lua_literal(meta.get('Title', 'OXP-FUI'))}, "
                  f"Version = {_lua_literal(meta.get('Version', 'dev'))} }}")
-        if openxp:
+        if openxp2:
+            # OpenXP 2.x: private addon table, named frames only.
+            self._eval_file(str(LUA_DIR / "fake_openxp2.lua"))
+        elif openxp:
             self.run(f"HARNESS.openxpVersion = {_lua_literal(openxp_version)}")
             self._eval_file(str(LUA_DIR / "fake_openxp.lua"))
         if flareui or flareui_late:

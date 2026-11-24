@@ -66,6 +66,35 @@ deliberate, re-applied after every OpenXP refresh, and listed here and in
     this happens only out of combat; a fold clicked in combat shows when
     combat ends.
 
+OpenXP 2.x (see "OpenXP 2.x" below):
+
+11. **Card header**: one row on the title strip, "Darkshore (16–19)" on
+    the left and "Step n / n" on the right (OpenXP: two rows); the header
+    is the strip's height, so OpenXP lays the steps out under it.
+12. **Step list header**: the title strip with the guide as its title and
+    Blizzard's red close button on its right end; OpenXP's back button
+    (the same as close) is hidden.
+13. **Quest Targets rows**: 14 px lower, under the title strip, and the box
+    14 px taller. Out of combat only, like OpenXP's own refresh.
+
+## OpenXP 2.x
+
+OpenXP 2.0 is a rewrite whose addon table is private, so OXP-FUI reaches it
+only through its named frames (`OpenXPCard`, `OpenXPSteps`,
+`OpenXPTargets`, `OpenXPMenu`, `OpenXPDropdownList`, `OpenXPConfirm`) and
+re-applies after OpenXP's own passes by post-hooking frame methods OpenXP
+calls (see `OpenXP2.lua`). OXP-FUI finds out which OpenXP it runs with at
+load and uses only the skins for that one.
+
+With 2.x, OXP-FUI gives the card, the step list, Quest Targets and OpenXP's
+pop-ups the FlareUI frame, header strip, colours and toolbar, and docks the
+card under FlareUI's tracker. Not available on 2.x until OpenXP offers a
+public API: the mock step layout, fitting the card's height under the
+tracker, width matching, and the Quest Targets pin and fold. OpenXP 2.x
+keeps the card's size and scroll state private and puts its own size back
+whenever another addon changes it. Text sizes and the font on the card body
+come from OpenXP's own font settings, so OpenXP lays its steps out to them.
+
 ## Install
 
 Build the ready-to-copy addon folder, then copy it into your `Interface\AddOns`

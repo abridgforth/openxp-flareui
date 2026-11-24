@@ -240,10 +240,12 @@ end
 
 -- Central evaluation, run at login, on every OpenXP refresh the engine
 -- re-applies after, on tracker show/hide/resize and on settings changes.
+local function gen2() return OXPFUI.OpenXPGen and OXPFUI.OpenXPGen() == 2 end
+
 function Dock.Update(reason)
   local db = OXPFUI.db
   local openxp = OXPFUI.GetOpenXP and OXPFUI.GetOpenXP() or nil
-  if not (db and openxp) then return end
+  if not (db and (openxp or gen2())) then return end
   local f = cardFrame()
   local tracker = trackerFrame()
   if db.enabled ~= true or not f or not tracker then
@@ -256,7 +258,7 @@ function Dock.Update(reason)
   if attachOn then
     hookTracker(tracker)
     suspendDrag(f)
-    hookGrip(openxp)
+    if openxp then hookGrip(openxp) end
     if not state.active then
       captureAnchor(f)
       state.active = true
@@ -267,6 +269,9 @@ function Dock.Update(reason)
   end
 
   -- The width follows the tracker whenever its switch is on, docked or not.
+  -- OpenXP 2.x puts its own saved size back on every refresh and keeps it
+  -- private: no width matching there (yet).
+  if gen2() then return end
   if matchOn then
     matchWidth(f, tracker, openxp)
   elseif state.matchedWidth then
@@ -285,7 +290,7 @@ end
 function Dock.Status()
   local L = OXPFUI.L
   local db = OXPFUI.db or {}
-  if not (OXPFUI.GetOpenXP and OXPFUI.GetOpenXP() and cardFrame()) then
+  if not (((OXPFUI.GetOpenXP and OXPFUI.GetOpenXP()) or gen2()) and cardFrame()) then
     return L.dockNoOpenXP
   end
   if db.enabled ~= true then

@@ -50,6 +50,14 @@
 --  10. Quest Targets window (SkinTargets.lua): the card's title strip as
 --      its header, OpenXP's labels and rows moved 10px down under it (the
 --      window 10px taller), and a box button that folds it to its header.
+-- OpenXP 2.x (OpenXP2.lua):
+--  11. Card header: OpenXP's two rows become one on the title strip,
+--      "Darkshore (16–19)" left, "Step n / n" right; the header is the
+--      strip's height, so the steps start under it.
+--  12. Step list header: the title strip, the guide as the title, the red
+--      close button on its right end, OpenXP's back button hidden.
+--  13. Quest Targets (OpenXPTargets): rows 14px lower, under the title
+--      strip, and the box 14px taller; out of combat only.
 
 local ADDON_NAME, OXPFUI = ...
 
@@ -57,6 +65,7 @@ OXPFUI.name = ADDON_NAME
 OXPFUI.version = (GetAddOnMetadata and GetAddOnMetadata(ADDON_NAME, "Version")) or "dev"
 -- The OpenXP version this release was tested against (also in the TOC).
 OXPFUI.testedOpenXP = "1.3.48"
+OXPFUI.testedOpenXP2 = "2.0.3"
 
 -- Exported for skin modules (which are files of this same addon) and tests.
 _G.OXPFUI = OXPFUI

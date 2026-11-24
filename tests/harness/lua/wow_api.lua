@@ -602,7 +602,23 @@ function HARNESS.RunSlash(input)
 end
 
 C_Timer = {}
-function C_Timer.After(_, fn) HARNESS.timers.after = HARNESS.timers.after + 1; fn() end
+-- Runs at once, like the next frame arriving instantly; with
+-- HARNESS.deferTimers set, waits for HARNESS.RunTimers() (a real next frame:
+-- after the code that scheduled it has finished).
+HARNESS.timerQueue = {}
+function C_Timer.After(_, fn)
+  HARNESS.timers.after = HARNESS.timers.after + 1
+  if HARNESS.deferTimers then
+    HARNESS.timerQueue[#HARNESS.timerQueue + 1] = fn
+  else
+    fn()
+  end
+end
+function HARNESS.RunTimers()
+  local q = HARNESS.timerQueue
+  HARNESS.timerQueue = {}
+  for _, fn in ipairs(q) do fn() end
+end
 function C_Timer.NewTicker(_, fn)
   HARNESS.timers.tickers = HARNESS.timers.tickers + 1
   fn()

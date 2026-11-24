@@ -67,6 +67,9 @@ local DENIED_PREFIXES = {
 -- else — other addons, Blizzard frames — is refused.
 local ALLOWED_PREFIXES = {
   "OpenXPCard",
+  -- OpenXP 2.x (OpenXP2.lua)
+  "OpenXPSteps", "OpenXPTargets", "OpenXPTargetButton", "OpenXPTargetRow",
+  "OpenXPMenu", "OpenXPDropdownList", "OpenXPConfirm",
   "RXPG_ARROW",
   "RXPTargetFrame",
   "OpenXPTargetMobs",
@@ -126,6 +129,7 @@ local BLOCKED_LAYOUT = {
 local state = {
   ready = false,        -- PLAYER_LOGIN seen
   openxpFound = false,
+  gen = nil,            -- OpenXP generation: 1 (1.x, Ace addon) or 2 (2.x)
   passes = 0,
   lastReason = "none",
   deferred = false,     -- a secure skin is waiting for combat to end
@@ -226,6 +230,21 @@ function OXPFUI.GetOpenXP()
   return openxp
 end
 
+-- OpenXP 2.x: a rewrite with a private addon table (no Ace addon to find);
+-- recognised by its version and its card frame.
+local function OpenXP2Version()
+  local meta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+  local v = meta and meta("OpenXP", "Version")
+  local major = type(v) == "string" and tonumber(v:match("^(%d+)"))
+  if major and major >= 2 and rawget(_G, "OpenXPCard") then return v end
+  return nil
+end
+
+-- 1 for OpenXP 1.x, 2 for 2.x, nil when OpenXP isn't there.
+function OXPFUI.OpenXPGen()
+  return state.gen
+end
+
 function OXPFUI.OpenXPVersion()
   if openxp then
     return openxp.openxpVersion
@@ -247,6 +266,9 @@ local function WindowGates(def)
   if not state.openxpFound then
     return false, "OpenXP not found"
   end
+  if (def.gen or 1) ~= state.gen then
+    return false, "for OpenXP " .. (def.gen or 1) .. ".x"
+  end
   for _, w in ipairs(def.windows) do
     if db.windows[w] == false then
       return false, "window '" .. w .. "' is switched off"
@@ -258,7 +280,8 @@ end
 local function ApplySkin(def, reason)
   local allowed, why = WindowGates(def)
   if not allowed then
-    Log("skip", def.name, why)
+    -- skins for the other OpenXP generation stay out of /oxpfui debug
+    if (def.gen or 1) == state.gen or not state.gen then Log("skip", def.name, why) end
     return
   end
   if def.secure and InCombatLockdown() then
@@ -351,6 +374,10 @@ local function HookRefresh(tableOrFrame, key, label)
 end
 
 local function InstallHooks()
+  if state.gen == 2 then
+    if OXPFUI.OpenXP2 then OXPFUI.OpenXP2.InstallHooks() end
+    return
+  end
   if not openxp then return end
   HookRefresh(openxp, "RenderFrame", "OpenXP RenderFrame")
   HookRefresh(openxp, "ReloadTheme", "OpenXP ReloadTheme")
@@ -390,8 +417,12 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
   if event == "ADDON_LOADED" and arg1 == ADDON_NAME then
     OXPFUI.InitDB()
     openxp = GetOpenXP()
-    if openxp then
-      state.openxpFound = true
+    local v2 = not openxp and OpenXP2Version()
+    if v2 then
+      state.openxpFound, state.gen = true, 2
+      openxpVersion = v2
+    elseif openxp then
+      state.openxpFound, state.gen = true, 1
       openxpVersion = OXPFUI.OpenXPVersion()
       if not OXPFUI.db.enabled then
         Log("skip", "engine", "master switch off at load: hooks not installed")
@@ -424,8 +455,8 @@ function OXPFUI.DebugReport()
 
   local version = OXPFUI.OpenXPVersion()
   if state.openxpFound and version then
-    lines[#lines + 1] = L.debugOpenXP:format(version, OXPFUI.testedOpenXP)
-    if version ~= OXPFUI.testedOpenXP then
+    lines[#lines + 1] = L.debugOpenXP:format(version, OXPFUI.TestedOpenXP())
+    if version ~= OXPFUI.TestedOpenXP() then
       lines[#lines + 1] = L.debugVersionDiffers
     end
   else
@@ -489,6 +520,13 @@ end
 function OXPFUI.VersionMismatch()
   local version = OXPFUI.OpenXPVersion()
   if not version then return nil end
-  if version == OXPFUI.testedOpenXP then return nil end
+  if version == OXPFUI.TestedOpenXP() then return nil end
   return version
+end
+
+-- The OpenXP version OXP-FUI was last checked against, for the installed
+-- generation.
+function OXPFUI.TestedOpenXP()
+  if state.gen == 2 then return OXPFUI.testedOpenXP2 end
+  return OXPFUI.testedOpenXP
 end
