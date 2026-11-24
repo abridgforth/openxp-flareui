@@ -313,7 +313,7 @@ end
 
 local function skinCard(ctx)
   local p = V2.Card()
-  if not p then ctx.Skip("OpenXPCard not built") return end
+  if not p then ctx.Skip("OpenXPCard not built") return false end
   local f = p.frame
   ownWindow(f, { header = p.header, headerStyle = "strip", foot = false })
   layoutHeader(p)
@@ -352,23 +352,46 @@ end
 -- The step list (OpenXPSteps)
 -- ---------------------------------------------------------------------------
 
+-- The rows' "you are here" accents, OpenXP's blue, in bronze: the step's
+-- node and its pulsing glow, the bar on its left, its "YOU'RE HERE" tag,
+-- and the "YOU ARE HERE" section heading above it.
+local function isBlue(r, g, b) return r and r < 0.45 and b and b > 0.9 end
+
+local function bronzeRows(f)
+  if not f.list then return end
+  local a = C.ACCENT
+  for _, row in ipairs({ f.list:GetChildren() }) do
+    if row.status == "current" then
+      if row.node then row.node:SetVertexColor(a[1], a[2], a[3], 1) end
+      if row.glow then row.glow:SetVertexColor(a[1], a[2], a[3], 0.6) end
+      if row.accent then row.accent:SetColorTexture(a[1], a[2], a[3], 1) end
+      local pill = row.pill
+      if pill then
+        if pill.text then pill.text:SetTextColor(a[1], a[2], a[3], 1) end
+        if pill.bg then pill.bg:SetVertexColor(a[1], a[2], a[3], 0.16) end
+      end
+    end
+    if row.header and row.header.GetTextColor and isBlue(row.header:GetTextColor()) then
+      row.header:SetTextColor(a[1], a[2], a[3], 1)
+    end
+  end
+end
+
 -- Layout exception 12: the list's header is the card's title strip: the
 -- guide as "Darkshore (16–19)" on it (OpenXP: "Steps" over the guide's
 -- name), Blizzard's red close button on its right end; OpenXP's back
 -- button (it does what close does) goes.
 local function skinSteps(ctx)
   local f = rawget(_G, "OpenXPSteps")
-  if not f then ctx.Skip("step list not opened yet") return end
+  if not f then ctx.Skip("step list not opened yet") return false end
   ownWindow(f, { role = "popup", header = f.head, headerStyle = "strip" })
   local band = f.oxpfuiBands and f.oxpfuiBands.title
   if f.head then f.head:SetAlpha(0) end
   if f.foot then f.foot:SetAlpha(0) end
   if f.accentLine then f.accentLine:SetAlpha(0) end
   if f.back then f.back:Hide() end
-  if f.headLine then
-    f.headLine:SetAlpha(0)
-    theme.ApplySectionRule(f, f.headLine, "TOP", "stepsHead")
-  end
+  -- OpenXP's line under its 50px header: gone (the strip is the header)
+  if f.headLine then f.headLine:SetAlpha(0) end
   if f.title and band then
     local guide = f.guide and f.guide:GetText()
     f.title:SetText(V2.FormatTitle(guide or ""))
@@ -389,10 +412,17 @@ local function skinSteps(ctx)
     theme.ApplyToolbarButton(f.mine, { wide = true })
     if f.mine.label then theme.ApplyText(f.mine.label, "objective", "OBJECTIVE") end
   end
+  bronzeRows(f)
   if not f.oxpfuiHooked and f.guide then
     f.oxpfuiHooked = true
     pcall(hooksecurefunc, f.guide, "SetText", function() V2.Soon("step list refresh") end)
     f:HookScript("OnShow", function() OXPFUI.Reapply("step list shown") end)
+    -- Nav.Paint ends by showing or hiding the scrollbar, after every row
+    -- is painted (on every scroll too): the rows' accents go bronze then.
+    if f.bar then
+      pcall(hooksecurefunc, f.bar, "Show", function() bronzeRows(f) end)
+      pcall(hooksecurefunc, f.bar, "Hide", function() bronzeRows(f) end)
+    end
   end
 end
 
@@ -439,7 +469,7 @@ end
 
 local function skinTargets(ctx)
   local box = rawget(_G, "OpenXPTargets")
-  if not box then ctx.Skip("OpenXPTargets missing") return end
+  if not box then ctx.Skip("OpenXPTargets missing") return false end
   ownWindow(box, { header = box.title, headerStyle = "strip" })
   local band = box.oxpfuiBands and box.oxpfuiBands.title
   if box.title then

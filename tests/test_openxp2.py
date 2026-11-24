@@ -137,6 +137,38 @@ class StepList(unittest.TestCase):
         """), ("RIGHT", True, 24, 0))
 
 
+    def _open(self):
+        env = boot(db={"frameStyle": "flareui"})
+        env.run("local n = HARNESS.OXP2.header.nav; n:GetScript('OnClick')(n)")
+        return env
+
+    def test_you_are_here_accents_are_bronze_after_every_paint(self):
+        env = self._open()
+        acc = env.run("local c = OXPFUI_NAMESPACE.theme.C.ACCENT; return c[1], c[2], c[3]")
+        for _ in range(2):  # opening, then a scroll repaints in blue again
+            row = "OpenXPSteps.rows[2]"
+            self.assertEqual(env.run(f"local r,g,b = {row}.node:GetVertexColor(); return r,g,b"), acc)
+            self.assertEqual(env.run(f"local r,g,b = {row}.accent:GetColorTexture(); return r,g,b"), acc)
+            self.assertEqual(env.run(f"local r,g,b = {row}.pill.text:GetTextColor(); return r,g,b"), acc)
+            self.assertEqual(env.run(f"local r,g,b = {row}.glow:GetVertexColor(); return r,g,b"), acc)
+            self.assertEqual(env.run("local r,g,b = OpenXPSteps.rows[1].header:GetTextColor(); return r,g,b"), acc)
+            env.run("HARNESS.OXP2.PaintSteps()")
+        # other headings keep OpenXP's faint grey
+        faint = env.run("return HARNESS.OXP2.C.faint[1]")
+        self.assertAlmostEqual(env.run("return (OpenXPSteps.rows[3].header:GetTextColor())"), faint)
+
+    def test_no_second_rule_under_the_header(self):
+        env = self._open()
+        self.assertIsNone(env.run("return OpenXPSteps.oxpfuiBands.stepsHead"))
+        self.assertEqual(env.run("return OpenXPSteps.headLine:GetAlpha()"), 0)
+
+    def test_not_listed_as_skinned_before_it_opens(self):
+        env = boot()
+        report = env.run("return OXPFUI_NAMESPACE.DebugReport()")
+        skinned = [l for l in report.split("\n") if l.startswith("Skinned")][0]
+        self.assertNotIn("step list", skinned)
+
+
 class QuestTargets(unittest.TestCase):
     def test_rows_under_the_strip_and_box_taller(self):
         env = boot(db={"frameStyle": "flareui"})

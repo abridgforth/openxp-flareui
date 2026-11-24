@@ -284,9 +284,46 @@ local function BuildSteps()
   s.tabBar = CreateFrame("Frame", nil, s)
   s.underline = s.tabBar:CreateTexture(nil, "OVERLAY")
   s.list = CreateFrame("Frame", nil, s)
+  s.bar = CreateFrame("Button", nil, s)
   s.foot = s:CreateTexture(nil, "BACKGROUND", nil, 1)
+  -- rows (NewRow): 1 = the "YOU ARE HERE" heading, 2 = the current step
+  s.rows = {}
+  for i = 1, 3 do
+    local row = CreateFrame("Button", nil, s.list)
+    row.hl = row:CreateTexture(nil, "BACKGROUND")
+    row.accent = row:CreateTexture(nil, "BORDER")
+    row.glow = row:CreateTexture(nil, "ARTWORK")
+    row.node = row:CreateTexture(nil, "ARTWORK")
+    row.pill = CreateFrame("Frame", nil, row)
+    row.pill.bg = row.pill:CreateTexture(nil, "BACKGROUND")
+    row.pill.text = row.pill:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    row.title = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    row.header = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    s.rows[i] = row
+  end
   s:Hide()
   return s
+end
+
+-- Nav.Paint: every row painted in OpenXP's colours, then the scrollbar.
+function X.PaintSteps()
+  local s = rawget(_G, "OpenXPSteps")
+  local blue = C.blue
+  local h, cur, todo = s.rows[1], s.rows[2], s.rows[3]
+  h.status = nil
+  h.header:SetText("YOU ARE HERE")
+  h.header:SetTextColor(blue[1], blue[2], blue[3])
+  cur.status = "current"
+  cur.node:SetVertexColor(blue[1], blue[2], blue[3], 1)
+  cur.glow:SetVertexColor(blue[1], blue[2], blue[3], 0.6)
+  cur.accent:SetColorTexture(blue[1], blue[2], blue[3], 1)
+  cur.pill.text:SetText("YOU'RE HERE")
+  cur.pill.text:SetTextColor(blue[1], blue[2], blue[3], 1)
+  cur.pill.bg:SetVertexColor(blue[1], blue[2], blue[3], 0.16)
+  todo.status = "todo"
+  todo.header:SetText("COMING UP")
+  todo.header:SetTextColor(C.faint[1], C.faint[2], C.faint[3])
+  s.bar:Hide()
 end
 
 function X.OpenSteps()
@@ -294,6 +331,7 @@ function X.OpenSteps()
   local s = rawget(_G, "OpenXPSteps") or BuildSteps()
   s:Show()
   s.guide:SetText(X.guideName) -- Nav.Refresh
+  X.PaintSteps()
 end
 
 function X.ToggleSteps()

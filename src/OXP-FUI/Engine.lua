@@ -324,8 +324,12 @@ local function ApplySkin(def, reason)
     end,
   }
 
+  -- Apply returns false when it skipped (its window isn't there yet): it
+  -- was not applied, and /oxpfui debug lists it under Skipped only.
   local ok, err = pcall(def.Apply, ctx)
-  if ok then
+  if ok and err == false then
+    return
+  elseif ok then
     Log("applied", def.name, reason)
   else
     Log("error", def.name, tostring(err))
