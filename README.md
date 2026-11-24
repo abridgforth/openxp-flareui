@@ -74,8 +74,19 @@ OpenXP 2.x (see "OpenXP 2.x" below):
 12. **Step list header**: the title strip with the guide as its title and
     Blizzard's red close button on its right end; OpenXP's back button
     (the same as close) is hidden.
-13. **Quest Targets rows**: 14 px lower, under the title strip, and the box
-    14 px taller. Out of combat only, like OpenXP's own refresh.
+13. **Quest Targets and the quest item**: with **Icons only** (default) a
+    row of 30 px FlareUI squares like RestedXP's target frame, the quest
+    item first, then one per target; the names are in the tooltips and the
+    key bound to the first target shows on its icon. Without it, the list
+    with its rows 14 px lower under the title strip. **Pin to the guide**
+    puts the item and the targets below the card or top-aligned beside it
+    (on the side away from the screen edge), under the step list while that
+    is open; dragging them is paused while pinned. Out of combat only, like
+    OpenXP's own refresh.
+14. **Card width**: "Match the tracker's width" resizes the card through
+    OpenXP's own resize grip, so OpenXP keeps the width as yours (it puts
+    its saved size back after any other change). Not while OpenXP's frames
+    are locked.
 
 ## OpenXP 2.x
 
@@ -88,9 +99,10 @@ load and uses only the skins for that one.
 
 With 2.x, OXP-FUI gives the card, the step list, Quest Targets and OpenXP's
 pop-ups the FlareUI frame, header strip, colours and toolbar, and docks the
-card under FlareUI's tracker. Not available on 2.x until OpenXP offers a
-public API: the mock step layout, fitting the card's height under the
-tracker, width matching, and the Quest Targets pin and fold. OpenXP 2.x
+card under FlareUI's tracker, at the tracker's width, with Quest Targets
+and the quest item pinned to it as icons. Not available on 2.x until
+OpenXP offers a public API: the mock step layout and fitting the card's
+height under the tracker. OpenXP 2.x
 keeps the card's size and scroll state private and puts its own size back
 whenever another addon changes it. Text sizes and the font on the card body
 come from OpenXP's own font settings, so OpenXP lays its steps out to them.

@@ -87,8 +87,30 @@ f:SetSize(330, 300)
 f:SetPoint("RIGHT", UIParent, "RIGHT", -40, 120)
 Backdrop(f)
 
+-- The resize grip (Card.StartSizing / StopSizing / TakeSize): while it is
+-- pressed OpenXP takes the frame's size as yours; otherwise every refresh
+-- puts the saved one back. X.locked: Settings > Lock frames.
+X.width, X.height = 330, 300
 local grip = CreateFrame("Button", nil, f)
 grip:SetSize(16, 16)
+grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+grip:SetScript("OnMouseDown", function()
+  if X.locked then return end
+  X.sizing = true
+  f:StartSizing("BOTTOMRIGHT")
+  grip:SetScript("OnUpdate", function() if X.sizing then X.width = f:GetWidth() end end)
+end)
+grip:SetScript("OnMouseUp", function()
+  if not X.sizing then return end
+  grip:SetScript("OnUpdate", nil)
+  f:StopMovingOrSizing()
+  X.sizing = false
+  X.width = math.floor(f:GetWidth() + 0.5)
+  bump("StopSizing")
+  X.Refresh()
+end)
+grip:SetScript("OnHide", function() end)
+X.grip = grip
 
 local header = CreateFrame("Frame", nil, f)
 header:SetPoint("TOPLEFT", 1, -1)
@@ -209,7 +231,7 @@ X.position, X.total = 10, 91
 function X.Refresh()
   bump("Refresh")
   f:Show()
-  f:SetSize(330, 300) -- "the size is yours: set it back to what you chose"
+  if not X.sizing then f:SetSize(X.width, X.height) end -- "the size is yours"
   -- LayoutHeader
   local zone, range = X.guideName:match("^%d+%-%d+%s+(.+)$"), X.guideName:match("^(%d+%-%d+)")
   header.zone:SetText((zone or X.guideName):upper())
@@ -361,12 +383,42 @@ local function Row(i)
   b:SetHeight(ROW_H)
   b:SetPoint("TOPLEFT", box, "TOPLEFT", 1, -18 - (i - 1) * ROW_H)
   b:SetPoint("TOPRIGHT", box, "TOPRIGHT", -1, -18 - (i - 1) * ROW_H)
+  b.hl = b:CreateTexture(nil, "BACKGROUND")
+  b.hl:SetAllPoints()
+  b.bar = b:CreateTexture(nil, "ARTWORK")
+  b.bar:SetPoint("TOPLEFT", 0, -4)
+  b.bar:SetPoint("BOTTOMLEFT", 0, 4)
+  b.bar:SetWidth(2)
+  b.slot = CreateFrame("Frame", nil, b)
+  b.slot:SetSize(20, 20)
+  b.slot:SetPoint("LEFT", 8, 0)
   b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
   b:Hide()
   rows[i] = b
   return b
 end
 Row(1)
+
+-- The quest item button (OpenXPItemButton): a square with the skin's
+-- panel and an accent edge.
+local item = CreateFrame("Button", "OpenXPItemButton", UIParent, "SecureActionButtonTemplate,BackdropTemplate")
+item:SetSize(36, 36)
+Backdrop(item)
+item.icon = item:CreateTexture(nil, "ARTWORK")
+item.hotkey = item:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+item.count = item:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+item:SetScript("OnDragStart", function() bump("item drag") end)
+box:SetScript("OnDragStart", function() bump("box drag") end)
+
+-- Buttons.Place: left of the card, against UIParent
+function X.Place()
+  bump("Place")
+  item:ClearAllPoints()
+  item:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", 592, 700)
+  box:ClearAllPoints()
+  box:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", 592, 648)
+end
+X.Place()
 
 function X.RefreshTargets(n)
   bump("RefreshTargets")

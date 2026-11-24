@@ -144,6 +144,10 @@ Settings.Define { key = "matchTrackerWidth", kind = "toggle", default = false, r
 Settings.Define { key = "pinTargets", kind = "choice", default = "off",
                   choices = { "off", "below", "side" }, reload = false }
 
+-- OpenXP 2.x: Quest Targets as a row of icons (RestedXP-style) instead of
+-- a list of names.
+Settings.Define { key = "targetsIcons", kind = "toggle", default = true, reload = false }
+
 -- Quest Targets folded to its header (the box button on the window itself).
 Settings.Define { key = "targetsCollapsed", kind = "toggle", default = false, reload = false }
 

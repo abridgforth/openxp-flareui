@@ -2,7 +2,7 @@
 ## Title: OXP-FUI
 ## Notes: FlareUI-style reskin for OpenXP
 ## Author: micfre
-## Version: 0.11.0
+## Version: 0.12.0
 ## X-Tested-OpenXP: 1.3.48
 ## RequiredDeps: OpenXP
 ## OptionalDeps: FlareUI
@@ -24,5 +24,6 @@ SkinWindows.lua
 SkinTooltips.lua
 WelcomeFeedback.lua
 OpenXP2.lua
+OpenXP2Targets.lua
 SettingsPanel.lua
 Mock.lua

@@ -269,9 +269,19 @@ function Dock.Update(reason)
   end
 
   -- The width follows the tracker whenever its switch is on, docked or not.
-  -- OpenXP 2.x puts its own saved size back on every refresh and keeps it
-  -- private: no width matching there (yet).
-  if gen2() then return end
+  if gen2() then
+    -- OpenXP 2.x keeps the card's size private and puts its own back on
+    -- every refresh: the width goes in through its own resize grip
+    -- (OpenXP2.lua). The pinned targets follow the card wherever it went.
+    if matchOn and OXPFUI.OpenXP2 then
+      local ok, w = pcall(tracker.GetWidth, tracker)
+      if ok and type(w) == "number" and w >= 40 then
+        state.matchedWidth = OXPFUI.OpenXP2.SetCardWidth(w) or state.matchedWidth
+      end
+    end
+    if OXPFUI.TargetsDock then OXPFUI.TargetsDock.Update("card docked") end
+    return
+  end
   if matchOn then
     matchWidth(f, tracker, openxp)
   elseif state.matchedWidth then
@@ -307,7 +317,7 @@ function Dock.Status()
     return L.dockOn:format(
       side() == "top" and L.dockSideAbove or L.dockSideBelow,
       padding(),
-      (db.matchTrackerWidth == true and not gen2()) and L.dockWidthMatched or L.dockWidthOwn)
+      (db.matchTrackerWidth == true and state.matchedWidth) and L.dockWidthMatched or L.dockWidthOwn)
   end
   if db.matchTrackerWidth == true then
     return L.dockWidthOnly

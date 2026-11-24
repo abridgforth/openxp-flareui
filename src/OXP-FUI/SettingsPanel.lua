@@ -25,7 +25,7 @@ local Settings = OXPFUI.Settings
 
 local panel -- built lazily on first open
 
-local WIDTH, HEIGHT = 460, 728
+local WIDTH, HEIGHT = 460, 760
 local LEFT = 20
 local COL2 = 230
 -- Sliders leave room on the right for their value label ("100%", "40px")
@@ -316,6 +316,8 @@ local function buildPanel()
     { value = "below", text = L.pinChoices.below },
     { value = "side", text = L.pinChoices.side },
   })
+  y = y - 32
+  f.iconsBtn = makeCheckbox(f, "targetsIcons", L.iconsLabel, L.iconsTip, LEFT, y)
 
   -- Reload note (shown only when the pending changes need a reload) -------
   f.reloadNote = fontString(f.content, "GameFontNormalSmall", "")

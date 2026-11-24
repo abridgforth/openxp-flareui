@@ -39,11 +39,6 @@ class Metadata(unittest.TestCase):
         self.assertNotEqual(env.run("return OXPFUI_NAMESPACE.version"), "dev")
         self.assertEqual(env.run("return OXPFUI_NAMESPACE.OpenXPGen()"), 2)
 
-    def test_dock_report_does_not_claim_width_matching_on_2x(self):
-        env = Env(openxp2=True, flareui=True, db={"matchTrackerWidth": True})
-        env.boot()
-        self.assertNotIn("matched", env.run("return OXPFUI_NAMESPACE.Dock.Status()"))
-
 
 class Card(unittest.TestCase):
     def setUp(self):
@@ -171,7 +166,7 @@ class StepList(unittest.TestCase):
 
 class QuestTargets(unittest.TestCase):
     def test_rows_under_the_strip_and_box_taller(self):
-        env = boot(db={"frameStyle": "flareui"})
+        env = boot(db={"frameStyle": "flareui", "targetsIcons": False})
         self.assertEqual(env.run("return OpenXPTargets.title:GetText()"), "Targets")
         self.assertEqual(env.run("local _,_,_,_,y = OpenXPTargetButton:GetPoint(1); return y"), -32)
         self.assertEqual(env.run("local _,_,_,_,y = OpenXPTargetRow2:GetPoint(1); return y"), -58)
@@ -184,12 +179,134 @@ class QuestTargets(unittest.TestCase):
         self.assertEqual(env.run("local _,_,_,_,y = OpenXPTargetRow3:GetPoint(1); return y"), -84)
 
     def test_waits_for_combat_to_end(self):
-        env = boot()
+        env = boot(db={"targetsIcons": False})
         env.set_combat(True)
         env.run("OXPFUI_NAMESPACE.Reapply('t')")
         env.set_combat(False)
         env.fire("PLAYER_REGEN_ENABLED")
         self.assertEqual(env.run("local _,_,_,_,y = OpenXPTargetButton:GetPoint(1); return y"), -32)
+
+
+class TargetIcons(unittest.TestCase):
+    """RestedXP-style: a row of icon squares, the names in tooltips."""
+
+    def test_icons_in_a_row_and_box_fits_them(self):
+        env = boot()
+        self.assertEqual(env.run("return OpenXPTargetButton:GetWidth(), OpenXPTargetButton:GetHeight()"), (30, 30))
+        self.assertEqual(env.run("local p,_,_,x,y = OpenXPTargetRow2:GetPoint(1); return p, x, y"), ("TOPLEFT", 34, 0))
+        self.assertEqual(env.run("return OpenXPTargets:GetWidth(), OpenXPTargets:GetHeight()"), (64, 30))
+        self.assertEqual(env.run("return OpenXPTargetButton.text:GetAlpha(), OpenXPTargets.title:GetAlpha()"), (0, 0))
+        self.assertTrue(env.run("return OpenXPTargetButton.oxpfuiRim:IsShown()"))
+        self.assertEqual(env.run("return OpenXPTargetButton.oxpfuiKey:GetText()"), "F")
+        # no window chrome
+        self.assertEqual(env.run("local _,_,_,a = OpenXPTargets:GetBackdropColor(); return a"), 0)
+
+    def test_openxp_refresh_keeps_the_icons(self):
+        env = boot()
+        env.run("HARNESS.OXP2.RefreshTargets(3)")
+        self.assertEqual(env.run("return OpenXPTargets:GetWidth(), OpenXPTargets:GetHeight()"), (98, 30))
+        self.assertEqual(env.run("return OpenXPTargetRow3:GetWidth()"), 30)
+
+    def test_item_button_same_size_and_flareui_square(self):
+        env = boot()
+        self.assertEqual(env.run("return OpenXPItemButton:GetWidth()"), 30)
+        box = env.run("return OXPFUI_NAMESPACE.theme.C.BOX[1]")
+        env.run("HARNESS.OXP2.Repaint()")
+        self.assertAlmostEqual(env.run("return (OpenXPItemButton:GetBackdropBorderColor())"), box)
+
+    def test_switching_back_to_names(self):
+        env = boot()
+        env.run("OXPFUI_NAMESPACE.Settings.Set('targetsIcons', false)")
+        self.assertEqual(env.run("return OpenXPTargets:GetWidth()"), 190)
+        self.assertEqual(env.run("return OpenXPTargetButton.text:GetAlpha()"), 1)
+        self.assertEqual(env.run("return OpenXPItemButton:GetWidth()"), 36)
+
+
+def place_card(env, left=600, right=930, top=700, bottom=400):
+    env.run(f"""
+      OpenXPCard.GetLeft = function() return {left} end
+      OpenXPCard.GetRight = function() return {right} end
+      OpenXPCard.GetTop = function() return {top} end
+      OpenXPCard.GetBottom = function() return {bottom} end
+    """)
+
+
+class PinTargets(unittest.TestCase):
+    def test_below_the_guide_item_then_targets(self):
+        env = boot(db={"pinTargets": "below"})
+        place_card(env)
+        env.run("OXPFUI_NAMESPACE.Reapply('t')")
+        self.assertEqual(env.run("local p,_,_,x,y = OpenXPItemButton:GetPoint(1); return p,x,y"),
+                         ("TOPRIGHT", 930 - 64 - 4, 392))
+        self.assertEqual(env.run("local p,_,_,x,y = OpenXPTargets:GetPoint(1); return p,x,y"),
+                         ("TOPRIGHT", 930, 392))
+
+    def test_beside_the_guide_top_aligned_away_from_the_edge(self):
+        env = boot(db={"pinTargets": "side"})
+        place_card(env)
+        env.run("OXPFUI_NAMESPACE.Reapply('t')")
+        self.assertEqual(env.run("local p,_,_,x,y = OpenXPTargets:GetPoint(1); return p,x,y"),
+                         ("TOPRIGHT", 600 - 6, 700))
+        # card on the left of the screen: the targets go right of it
+        place_card(env, left=100, right=430)
+        env.run("OXPFUI_NAMESPACE.Reapply('t')")
+        self.assertEqual(env.run("local p,_,_,x,y = OpenXPItemButton:GetPoint(1); return p,x,y"),
+                         ("TOPLEFT", 436, 700))
+        self.assertEqual(env.run("local p,_,_,x,y = OpenXPTargets:GetPoint(1); return p,x,y"),
+                         ("TOPLEFT", 436 + 30 + 4, 700))
+
+    def test_openxp_placing_them_again_is_undone(self):
+        env = boot(db={"pinTargets": "below"})
+        place_card(env)
+        env.run("OXPFUI_NAMESPACE.Reapply('t'); HARNESS.OXP2.Place()")
+        self.assertEqual(env.run("local _,_,_,x,y = OpenXPTargets:GetPoint(1); return x,y"), (930, 392))
+
+    def test_drag_suspended_while_pinned_and_off_restores(self):
+        env = boot(db={"pinTargets": "below"})
+        place_card(env)
+        env.run("OXPFUI_NAMESPACE.Reapply('t')")
+        env.run("OpenXPTargets:GetScript('OnDragStart')(OpenXPTargets)")
+        self.assertEqual(env.run("return HARNESS.OXP2.calls['box drag'] or 0"), 0)
+        env.run("OXPFUI_NAMESPACE.Settings.Set('pinTargets', 'off')")
+        self.assertEqual(env.run("local _,_,_,x,y = OpenXPTargets:GetPoint(1); return x,y"), (592, 648))
+        env.run("OpenXPTargets:GetScript('OnDragStart')(OpenXPTargets)")
+        self.assertEqual(env.run("return HARNESS.OXP2.calls['box drag']"), 1)
+
+    def test_waits_for_combat(self):
+        env = boot()
+        place_card(env)
+        env.set_combat(True)
+        env.run("OXPFUI_NAMESPACE.Settings.Set('pinTargets', 'below')")
+        self.assertEqual(env.run("local _,_,_,x,y = OpenXPTargets:GetPoint(1); return x,y"), (592, 648))
+        env.set_combat(False)
+        env.fire("PLAYER_REGEN_ENABLED")
+        self.assertEqual(env.run("local _,_,_,x,y = OpenXPTargets:GetPoint(1); return x,y"), (930, 392))
+
+    def test_debug_status(self):
+        env = boot(db={"pinTargets": "below"})
+        place_card(env)
+        env.run("OXPFUI_NAMESPACE.Reapply('t')")
+        self.assertIn("below", env.run("return OXPFUI_NAMESPACE.TargetsDock.Status()"))
+
+
+class CardWidth(unittest.TestCase):
+    def test_width_matched_through_openxps_grip(self):
+        env = Env(openxp2=True, flareui=True, db={"matchTrackerWidth": True})
+        env.boot()
+        tw = env.run("return FlareUI_ObjectiveTracker:GetWidth()")
+        self.assertNotEqual(tw, 330)
+        self.assertEqual(env.run("return HARNESS.OXP2.width"), tw)   # OpenXP's own saved width
+        env.run("HARNESS.OXP2.Refresh()")                            # and it keeps it
+        self.assertEqual(env.run("return OpenXPCard:GetWidth()"), tw)
+        self.assertIn("matched", env.run("return OXPFUI_NAMESPACE.Dock.Status()"))
+
+    def test_locked_frames_leave_the_width(self):
+        env = Env(openxp2=True, flareui=True, db={"matchTrackerWidth": True}, load_addon=False)
+        env.run("HARNESS.OXP2.locked = true")
+        env.load_addon()
+        env.boot()
+        self.assertEqual(env.run("return HARNESS.OXP2.width"), 330)
+        self.assertNotIn("matched", env.run("return OXPFUI_NAMESPACE.Dock.Status()"))
 
 
 class Popups(unittest.TestCase):

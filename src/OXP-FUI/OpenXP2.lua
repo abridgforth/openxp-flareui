@@ -20,10 +20,10 @@
 -- Layout exceptions for 2.x (Core.lua, README): 11 card header on the
 -- title strip, 12 step list header, 13 Quest Targets rows under the strip.
 --
--- Everything else OXP-FUI does for 1.x (the mock step layout, card height
--- fitting, Quest Targets pin and fold, width matching) waits for a public
--- OpenXP API: OpenXP 2.0 keeps the card's size and scroll state private and
--- puts its own size back whenever another addon changes it.
+-- Quest Targets and the item button (icons, pin): OpenXP2Targets.lua.
+-- Width matching goes through OpenXP's own resize grip (V2.SetCardWidth).
+-- The mock step layout and card height fitting wait for a public OpenXP
+-- API: OpenXP 2.0 keeps the card's height and scroll state private.
 
 local ADDON_NAME, OXPFUI = ...
 
@@ -136,16 +136,33 @@ local painting = false
 -- Style.PaintBackdrop sets its own colours on the frame on every skin or
 -- opacity change; right after it, the FlareUI backdrop goes back on, and a
 -- full pass follows a moment later for the rest of what OpenXP repainted.
+-- opts.bare: no background, border or strips at all (the frame's own
+-- pieces carry the look, e.g. Quest Targets as a row of icons).
+local function paintWindow(f, opts)
+  if opts.bare then
+    if f.SetBackdropColor then
+      f:SetBackdropColor(0, 0, 0, 0)
+      f:SetBackdropBorderColor(0, 0, 0, 0)
+    end
+    for _, k in ipairs({ "title", "foot" }) do
+      local band = f.oxpfuiBands and f.oxpfuiBands[k]
+      if band then theme.HideStrip(band) end
+    end
+    return true, false
+  end
+  return pcall(theme.ApplyWindow, f, opts)
+end
+
 local function ownWindow(f, opts)
   painting = true
-  local ok, drawn = pcall(theme.ApplyWindow, f, opts)
+  local ok, drawn = paintWindow(f, opts)
   painting = false
   if not f.oxpfuiOwned then
     f.oxpfuiOwned = opts
     local function back()
       if painting then return end
       painting = true
-      pcall(theme.ApplyWindow, f, f.oxpfuiOwned)
+      paintWindow(f, f.oxpfuiOwned)
       painting = false
       V2.Soon("OpenXP repaint")
     end
@@ -156,6 +173,8 @@ local function ownWindow(f, opts)
   end
   return ok and drawn
 end
+
+V2.OwnWindow = ownWindow
 
 -- One full pass after OpenXP's current one (C_Timer.After(0) = next frame).
 local soon = false
@@ -417,6 +436,7 @@ local function skinSteps(ctx)
     f.oxpfuiHooked = true
     pcall(hooksecurefunc, f.guide, "SetText", function() V2.Soon("step list refresh") end)
     f:HookScript("OnShow", function() OXPFUI.Reapply("step list shown") end)
+    f:HookScript("OnHide", function() OXPFUI.Reapply("step list closed") end)
     -- Nav.Paint ends by showing or hiding the scrollbar, after every row
     -- is painted (on every scroll too): the rows' accents go bronze then.
     if f.bar then
@@ -426,80 +446,7 @@ local function skinSteps(ctx)
   end
 end
 
--- ---------------------------------------------------------------------------
--- Quest Targets (OpenXPTargets)
--- ---------------------------------------------------------------------------
-
--- Layout exception 13: the box's title is the card's title strip, so its
--- rows move SHIFT lower (OpenXP: 18px under the top) and the box grows by
--- the same. Rows are secure buttons: out of combat only, like OpenXP's own
--- Buttons.Refresh (it waits for combat to end too).
-local TARGETS_SHIFT = 14
-local ROW_TOP, ROW_H = 18, 26
-
-local function targetRows(box)
-  local rows = {}
-  local first = rawget(_G, "OpenXPTargetButton")
-  if first then rows[1] = first end
-  for i = 2, 20 do
-    local r = rawget(_G, "OpenXPTargetRow" .. i)
-    if not r then break end
-    rows[i] = r
-  end
-  return rows
-end
-
-local inBox = false
-local function layoutTargets(box)
-  if inCombat() or inBox then return end
-  inBox = true
-  for i, r in ipairs(targetRows(box)) do
-    local y = -(ROW_TOP + TARGETS_SHIFT + (i - 1) * ROW_H)
-    r:ClearAllPoints()
-    r:SetPoint("TOPLEFT", box, "TOPLEFT", 1, y)
-    r:SetPoint("TOPRIGHT", box, "TOPRIGHT", -1, y)
-  end
-  -- OpenXP: 20 + rows * 26; ours: that plus the shift, whatever it was before
-  local shown = 0
-  for _, r in ipairs(targetRows(box)) do if r:IsShown() then shown = shown + 1 end end
-  local want = 20 + math.max(1, shown) * ROW_H + TARGETS_SHIFT
-  if math.abs((box:GetHeight() or 0) - want) >= 0.5 then box:SetHeight(want) end
-  inBox = false
-end
-
-local function skinTargets(ctx)
-  local box = rawget(_G, "OpenXPTargets")
-  if not box then ctx.Skip("OpenXPTargets missing") return false end
-  ownWindow(box, { header = box.title, headerStyle = "strip" })
-  local band = box.oxpfuiBands and box.oxpfuiBands.title
-  if box.title then
-    local t = box.title:GetText()
-    if t ~= box.title.oxpfuiShown then
-      local shown = theme.TitleCase(t)
-      box.title:SetText(shown)
-      box.title.oxpfuiShown = shown
-    end
-    theme.ApplyText(box.title, "header", "TITLE")
-    if band then
-      box.title:ClearAllPoints()
-      box.title:SetPoint("LEFT", band, "LEFT", A.PAD - A.HEADER_INSET, 0)
-    end
-  end
-  if box.key then
-    theme.ApplyText(box.key, "counter", "DIM")
-    if band then
-      box.key:ClearAllPoints()
-      box.key:SetPoint("RIGHT", band, "RIGHT", -(A.PAD - A.HEADER_INSET), 0)
-    end
-  end
-  layoutTargets(box)
-  if not box.oxpfuiHooked then
-    box.oxpfuiHooked = true
-    pcall(hooksecurefunc, box, "SetHeight", function()
-      if not inBox then V2.Soon("targets refresh") end
-    end)
-  end
-end
+-- Quest Targets and the quest item button: OpenXP2Targets.lua.
 
 -- ---------------------------------------------------------------------------
 -- Pop-ups: the menu, dropdown lists, the confirm dialog
@@ -549,9 +496,56 @@ function V2.InstallHooks()
   end
 end
 
+-- ---------------------------------------------------------------------------
+-- Card width (Tracker dock: "Match the tracker's width")
+-- ---------------------------------------------------------------------------
+
+-- OpenXP 2.x keeps the card's size private (Card.width, saved as its
+-- cardWidth) and puts it back whenever anything else resizes the card. Its
+-- own resize grip is the one way in: pressing it starts OpenXP's sizing
+-- (from then on OpenXP takes the frame's size as yours), the width is set,
+-- and releasing it a moment later saves it like a drag of the grip would.
+-- The grip: the card's one plain button with press, release and hide
+-- scripts (UI/Card.lua; the icon and text buttons carry .icon / .label).
+local function grip(f)
+  for _, c in ipairs({ f:GetChildren() }) do
+    if c.GetObjectType and c:GetObjectType() == "Button" and c.icon == nil and c.label == nil
+        and c:GetScript("OnMouseDown") and c:GetScript("OnMouseUp") and c:GetScript("OnHide") then
+      return c
+    end
+  end
+  return nil
+end
+
+local sizing = false
+function V2.SetCardWidth(w)
+  local p = V2.Card()
+  local f = p and p.frame
+  if not f or sizing then return false end
+  w = math.floor(w + 0.5)
+  if math.abs((f:GetWidth() or 0) - w) < 1 then return true end
+  local g = grip(f)
+  if not g then return false end
+  local down, up = g:GetScript("OnMouseDown"), g:GetScript("OnMouseUp")
+  if not (down and up) then return false end
+  sizing = true
+  pcall(down, g, "LeftButton")
+  if not g:GetScript("OnUpdate") then
+    -- OpenXP didn't start sizing: its frames are locked (Settings > Lock)
+    sizing = false
+    return false
+  end
+  pcall(f.StopMovingOrSizing, f) -- not following the mouse
+  f:SetWidth(w)
+  local function finish()
+    pcall(up, g)
+    sizing = false
+  end
+  if C_Timer and C_Timer.After then C_Timer.After(0.1, finish) else finish() end
+  return true
+end
+
 local W = { "card" }
 OXPFUI.RegisterSkin { name = "OpenXP 2 card", gen = 2, windows = W, Apply = skinCard }
 OXPFUI.RegisterSkin { name = "OpenXP 2 step list", gen = 2, windows = W, Apply = skinSteps }
-OXPFUI.RegisterSkin { name = "OpenXP 2 quest targets", gen = 2, windows = { "targets" }, secure = true,
-  Apply = skinTargets }
 OXPFUI.RegisterSkin { name = "OpenXP 2 pop-ups", gen = 2, windows = W, Apply = skinPopups }

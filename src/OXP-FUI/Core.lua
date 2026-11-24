@@ -56,8 +56,13 @@
 --      strip's height, so the steps start under it.
 --  12. Step list header: the title strip, the guide as the title, the red
 --      close button on its right end, OpenXP's back button hidden.
---  13. Quest Targets (OpenXPTargets): rows 14px lower, under the title
---      strip, and the box 14px taller; out of combat only.
+--  13. Quest Targets and the quest item (OpenXP2Targets.lua): icons only
+--      (default; RestedXP-style row of 30px squares, item first) or the
+--      list with its rows 14px lower under the title strip; pinned below
+--      or beside the guide (under the step list while it's open), placed
+--      against UIParent like OpenXP does; out of combat only.
+--  14. Card width (OpenXP2.lua): "Match the tracker's width" sets it through
+--      OpenXP's own resize grip, so OpenXP saves it as yours.
 
 local ADDON_NAME, OXPFUI = ...
 

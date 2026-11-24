@@ -139,7 +139,14 @@ end
 
 -- Central evaluation: settings changes, every re-apply pass, the step list
 -- opening and closing, and combat ending.
+local function gen2() return OXPFUI.OpenXPGen and OXPFUI.OpenXPGen() == 2 end
+
 function TargetsDock.Update(reason)
+  if gen2() then
+    local T = OXPFUI.OpenXP2 and OXPFUI.OpenXP2.Targets
+    if T then T.Pin(reason) end
+    return
+  end
   local t, card = targetsFrame(), cardFrame()
   if not (t and card) then return end
   local m = mode()
@@ -172,6 +179,9 @@ function TargetsDock.WatchList(list)
 end
 
 function TargetsDock.Status()
+  if gen2() and OXPFUI.OpenXP2 and OXPFUI.OpenXP2.Targets then
+    return OXPFUI.OpenXP2.Targets.Status()
+  end
   local L = OXPFUI.L
   local m = mode()
   if m == "off" then return L.pinOff end
