@@ -233,8 +233,7 @@ end
 -- OpenXP 2.x: a rewrite with a private addon table (no Ace addon to find);
 -- recognised by its version and its card frame.
 local function OpenXP2Version()
-  local meta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
-  local v = meta and meta("OpenXP", "Version")
+  local v = OXPFUI.Metadata("OpenXP", "Version")
   local major = type(v) == "string" and tonumber(v:match("^(%d+)"))
   if major and major >= 2 and rawget(_G, "OpenXPCard") then return v end
   return nil
@@ -248,7 +247,7 @@ end
 function OXPFUI.OpenXPVersion()
   if openxp then
     return openxp.openxpVersion
-      or (GetAddOnMetadata and GetAddOnMetadata("OpenXP", "Version"))
+      or OXPFUI.Metadata("OpenXP", "Version")
       or nil
   end
   return openxpVersion

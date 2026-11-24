@@ -29,6 +29,22 @@ class Detection(unittest.TestCase):
         self.assertIsNone(env.run("return OXPFUI_NAMESPACE.VersionMismatch()"))
 
 
+class Metadata(unittest.TestCase):
+    def test_version_read_without_the_old_global(self):
+        # The Forever client has only C_AddOns.GetAddOnMetadata.
+        env = Env(openxp2=True, load_addon=False)
+        env.run("GetAddOnMetadata = nil")
+        env.load_addon()
+        env.boot()
+        self.assertNotEqual(env.run("return OXPFUI_NAMESPACE.version"), "dev")
+        self.assertEqual(env.run("return OXPFUI_NAMESPACE.OpenXPGen()"), 2)
+
+    def test_dock_report_does_not_claim_width_matching_on_2x(self):
+        env = Env(openxp2=True, flareui=True, db={"matchTrackerWidth": True})
+        env.boot()
+        self.assertNotIn("matched", env.run("return OXPFUI_NAMESPACE.Dock.Status()"))
+
+
 class Card(unittest.TestCase):
     def setUp(self):
         self.env = boot(db={"frameStyle": "flareui"})
@@ -90,6 +106,11 @@ class Card(unittest.TestCase):
         env.run("local b = HARNESS.OXP2.bar.prev; b:GetScript('OnEnter')(b); b:GetScript('OnLeave')(b)")
         gold = env.run("return OXPFUI_NAMESPACE.theme.C.TITLE[2]")
         self.assertAlmostEqual(env.run("local _, g = HARNESS.OXP2.bar.prev.icon:GetVertexColor(); return g"), gold)
+
+    def test_more_button_is_a_flareui_box(self):
+        env = self.env
+        self.assertTrue(env.run("return HARNESS.OXP2.more.oxpfuiBox ~= nil"))
+        self.assertEqual(env.run("return HARNESS.OXP2.more.back:GetAlpha()"), 0)
 
     def test_step_separators_bronze(self):
         acc = self.env.run("return OXPFUI_NAMESPACE.theme.C.ACCENT[1]")

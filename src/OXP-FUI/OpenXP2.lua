@@ -119,6 +119,7 @@ function V2.Card()
     track = track, fill = fill,
     bar = childWith(f, "prev", "next", "menu"),
     mini = childWith(f, "badge", "expand"),
+    more = childWith(f, "label", "back", "SetLabel"),
   }
   p.xp = p.bar and childWith(p.bar, "fill", "rested")
   f.oxpfuiParts = p
@@ -287,6 +288,29 @@ local function skinBlocks(p)
   end
 end
 
+-- OpenXP's "More" / "Less" (a TextButton over a solid patch in OpenXP's
+-- background colour, so cut-off text doesn't show through): a FlareUI box.
+local function skinMore(more)
+  if not more then return end
+  theme.ApplyToolbarButton(more, { wide = true })
+  if more.oxpfuiBox then
+    more.oxpfuiBox:ClearAllPoints()
+    more.oxpfuiBox:SetAllPoints(more)
+    more.oxpfuiBox:SetBackdropColor(0, 0, 0, 0.85)
+  end
+  if more.back then more.back:SetAlpha(0) end
+  if more.label then theme.ApplyText(more.label, "counter", "TITLE") end
+  if not more.oxpfuiPaint then
+    more.oxpfuiPaint = true
+    -- OpenXP's Paint brings its wash and colours back on every mouse move
+    local function again() if more.bg then more.bg:SetAlpha(0) end
+      if more.label then theme.ApplyTextColor(more.label, "TITLE") end end
+    more:HookScript("OnEnter", again)
+    more:HookScript("OnLeave", again)
+    more:HookScript("OnMouseUp", again)
+  end
+end
+
 local function skinCard(ctx)
   local p = V2.Card()
   if not p then ctx.Skip("OpenXPCard not built") return end
@@ -316,6 +340,7 @@ local function skinCard(ctx)
     local c = C.ACCENT
     p.xp.rested:SetColorTexture(c[1], c[2], c[3], 0.35)
   end
+  skinMore(p.more)
   if p.mini then
     if p.mini.text then theme.ApplyText(p.mini.text, "title", "TITLE") end
     if p.mini.count then theme.ApplyTextColor(p.mini.count, "DIM") end

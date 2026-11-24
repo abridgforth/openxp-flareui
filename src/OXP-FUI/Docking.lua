@@ -307,7 +307,7 @@ function Dock.Status()
     return L.dockOn:format(
       side() == "top" and L.dockSideAbove or L.dockSideBelow,
       padding(),
-      db.matchTrackerWidth == true and L.dockWidthMatched or L.dockWidthOwn)
+      (db.matchTrackerWidth == true and not gen2()) and L.dockWidthMatched or L.dockWidthOwn)
   end
   if db.matchTrackerWidth == true then
     return L.dockWidthOnly
@@ -321,8 +321,7 @@ end
 -- ---------------------------------------------------------------------------
 
 local function flareuiInstalled()
-  if not GetAddOnMetadata then return false end
-  return GetAddOnMetadata("FlareUI", "Version") ~= nil
+  return OXPFUI.Metadata("FlareUI", "Version") ~= nil
 end
 
 local function pollForTracker()

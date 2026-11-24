@@ -62,7 +62,15 @@
 local ADDON_NAME, OXPFUI = ...
 
 OXPFUI.name = ADDON_NAME
-OXPFUI.version = (GetAddOnMetadata and GetAddOnMetadata(ADDON_NAME, "Version")) or "dev"
+-- Addon metadata: C_AddOns on modern clients (the Forever client has no
+-- global GetAddOnMetadata any more), the old global elsewhere.
+function OXPFUI.Metadata(addon, field)
+  local fn = (C_AddOns and C_AddOns.GetAddOnMetadata) or rawget(_G, "GetAddOnMetadata")
+  if not fn then return nil end
+  local ok, v = pcall(fn, addon, field)
+  return ok and v or nil
+end
+OXPFUI.version = OXPFUI.Metadata(ADDON_NAME, "Version") or "dev"
 -- The OpenXP version this release was tested against (also in the TOC).
 OXPFUI.testedOpenXP = "1.3.48"
 OXPFUI.testedOpenXP2 = "2.0.3"

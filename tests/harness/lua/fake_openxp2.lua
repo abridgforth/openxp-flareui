@@ -190,7 +190,10 @@ local more = CreateFrame("Button", nil, f)
 more.bg = more:CreateTexture(nil, "BACKGROUND")
 more.label = more:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 more.back = more:CreateTexture(nil, "BACKGROUND")
+function more:SetLabel(t) self.label:SetText(t) end
+more:SetLabel("More")
 more:Hide()
+X.more = more
 
 local mini = CreateFrame("Frame", nil, f)
 mini.badge = Badge(mini, 24)

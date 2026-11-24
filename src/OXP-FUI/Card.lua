@@ -645,7 +645,7 @@ end
 -- FlareUI lets its maintainer-configured texture be read, only it changes.
 -- Nil while FlareUI is not installed: the bars then keep OpenXP's own.
 local function flareBarTexture()
-  if not (GetAddOnMetadata and GetAddOnMetadata("FlareUI", "Version")) then
+  if not OXPFUI.Metadata("FlareUI", "Version") then
     return nil
   end
   return "Interface\\AddOns\\FlareUI\\Media\\Bars\\FlareUI-Forever.tga"
